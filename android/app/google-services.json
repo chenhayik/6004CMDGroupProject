@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "565903466138",
+    "project_id": "cmdgroupproject-e5914",
+    "storage_bucket": "cmdgroupproject-e5914.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:565903466138:android:3ef8f64e7fbb7fa0458923",
+        "android_client_info": {
+          "package_name": "inti.edu.mobile_application_group"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzghuMrmjypi4l7ZwS_iST1QVyu7ljDq8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
