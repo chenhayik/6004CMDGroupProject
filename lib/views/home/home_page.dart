@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Add this import for Firebase
-import 'package:mobile_application_group/screens/login/auth.dart';
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});

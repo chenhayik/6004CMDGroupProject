@@ -28,6 +28,8 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  provider: ^6.1.2
+
   flutter:
     sdk: flutter
 
@@ -36,6 +38,8 @@ dependencies:
 
   firebase_auth:
   cloud_firestore:
+
+
 
   form_validator: ^2.1.1
   # The following adds the Cupertino Icons font to your application.
