@@ -4,6 +4,8 @@ import '../../../models/user_profile.dart';
 import '../../../services/firestore_service.dart';
 import 'package:mobile_application_group/views/home/home_page.dart';
 
+import '../../macro/macro_calculator.dart';
+
 class SelectGoalView extends StatefulWidget {
   final Map<String, dynamic> formData;
 
@@ -114,38 +116,49 @@ class _SelectGoalViewState extends State<SelectGoalView> {
       return;
     }
 
+    final updatedFormData = Map<String, dynamic>.from(widget.formData);
+    updatedFormData['goal'] = _selectedGoal;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CalorieCalculatorPage(formData: updatedFormData),
+      ),
+    );
+
+
     setState(() => _isLoading = true);
 
-    try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-
-      final profile = UserProfile(
-        uid: uid,
-        age: widget.formData['age'],
-        biologicalSex: widget.formData['biologicalSex'],
-        height: widget.formData['height'],
-        weight: widget.formData['weight'],
-        activityLevel: widget.formData['activityLevel'],
-        goal: _selectedGoal!,
-      );
-
-      await FirestoreService().createUserProfile(profile);
-
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
-              (route) => false,
-        );
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving profile: $e')),
-        );
-      }
-    }
+    // try {
+    //   final uid = FirebaseAuth.instance.currentUser!.uid;
+    //
+    //   final profile = UserProfile(
+    //     uid: uid,
+    //     age: widget.formData['age'],
+    //     biologicalSex: widget.formData['biologicalSex'],
+    //     height: widget.formData['height'],
+    //     weight: widget.formData['weight'],
+    //     activityLevel: widget.formData['activityLevel'],
+    //     goal: _selectedGoal!,
+    //   );
+    //
+    //   await FirestoreService().createUserProfile(profile);
+    //
+    //   if (mounted) {
+    //     Navigator.pushAndRemoveUntil(
+    //       context,
+    //       MaterialPageRoute(builder: (_) => const HomePage()),
+    //           (route) => false,
+    //     );
+    //   }
+    // } catch (e) {
+    //   setState(() => _isLoading = false);
+    //   if (mounted) {
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       SnackBar(content: Text('Error saving profile: $e')),
+    //     );
+    //   }
+    // }
   }
 
   @override

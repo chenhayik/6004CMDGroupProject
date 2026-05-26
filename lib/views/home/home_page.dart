@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Add this import for Firebase
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../../widget_tree.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -14,6 +16,13 @@ class _HomePageState extends State<HomePage> {
   // 1. Define the actual sign out logic here
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const WidgetTree()),
+            (route) => false,
+      );
+    }
   }
 
   // 2. Helper Function: Creates the top App Bar
