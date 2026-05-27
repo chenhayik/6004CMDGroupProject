@@ -116,6 +116,8 @@ class _SelectGoalViewState extends State<SelectGoalView> {
       return;
     }
 
+    // ── Merge goal into formData and navigate ──
+    // No loading state needed here — CalorieCalculatorPage handles its own
     final updatedFormData = Map<String, dynamic>.from(widget.formData);
     updatedFormData['goal'] = _selectedGoal;
 
@@ -125,40 +127,6 @@ class _SelectGoalViewState extends State<SelectGoalView> {
         builder: (_) => CalorieCalculatorPage(formData: updatedFormData),
       ),
     );
-
-
-    setState(() => _isLoading = true);
-
-    // try {
-    //   final uid = FirebaseAuth.instance.currentUser!.uid;
-    //
-    //   final profile = UserProfile(
-    //     uid: uid,
-    //     age: widget.formData['age'],
-    //     biologicalSex: widget.formData['biologicalSex'],
-    //     height: widget.formData['height'],
-    //     weight: widget.formData['weight'],
-    //     activityLevel: widget.formData['activityLevel'],
-    //     goal: _selectedGoal!,
-    //   );
-    //
-    //   await FirestoreService().createUserProfile(profile);
-    //
-    //   if (mounted) {
-    //     Navigator.pushAndRemoveUntil(
-    //       context,
-    //       MaterialPageRoute(builder: (_) => const HomePage()),
-    //           (route) => false,
-    //     );
-    //   }
-    // } catch (e) {
-    //   setState(() => _isLoading = false);
-    //   if (mounted) {
-    //     ScaffoldMessenger.of(context).showSnackBar(
-    //       SnackBar(content: Text('Error saving profile: $e')),
-    //     );
-    //   }
-    // }
   }
 
   @override

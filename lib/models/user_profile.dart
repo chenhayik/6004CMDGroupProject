@@ -9,6 +9,7 @@ class UserProfile {
   final String activityLevel;
   final String goal;
 
+
   UserProfile({
     required this.uid,
     required this.age,
