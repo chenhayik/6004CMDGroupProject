@@ -4,7 +4,8 @@ import '../../../models/user_profile.dart';
 import '../../../services/firestore_service.dart';
 import 'package:mobile_application_group/views/home/home_page.dart';
 
-import '../../macro/macro_calculator.dart';
+import 'package:mobile_application_group/views/macros/macro_calculator_view.dart';
+
 
 class SelectGoalView extends StatefulWidget {
   final Map<String, dynamic> formData;
@@ -124,7 +125,7 @@ class _SelectGoalViewState extends State<SelectGoalView> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CalorieCalculatorPage(formData: updatedFormData),
+        builder: (_) => MacroCalculatorView(formData: updatedFormData),  // ← renamed
       ),
     );
   }

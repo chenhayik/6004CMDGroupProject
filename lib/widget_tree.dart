@@ -5,7 +5,7 @@ import 'package:mobile_application_group/services/firestore_service.dart';
 import 'package:mobile_application_group/views/login/login_view.dart';
 import 'package:mobile_application_group/views/onboarding/setup_profile_view.dart';
 import 'package:mobile_application_group/views/home/home_page.dart';
-import 'package:mobile_application_group/macro/macro_calculator.dart';
+
 
 class WidgetTree extends StatelessWidget {
   const WidgetTree({super.key});
