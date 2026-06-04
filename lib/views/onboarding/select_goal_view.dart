@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../models/user_profile.dart';
 import '../../../services/firestore_service.dart';
-import 'package:mobile_application_group/views/home/home_page.dart';
+import 'package:mobile_application_group/views/home/home_view.dart';
 
 import 'package:mobile_application_group/views/macros/macro_calculator_view.dart';
 

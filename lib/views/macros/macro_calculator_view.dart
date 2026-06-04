@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/macro_calculator_viewmodel.dart';
-import '../home/home_page.dart';
+import '../home/home_view.dart';
 
 class MacroCalculatorView extends StatelessWidget {
   final Map<String, dynamic> formData;
@@ -132,7 +132,7 @@ class _MacroCalculatorContent extends StatelessWidget {
     if (success) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const HomePage()),
+        MaterialPageRoute(builder: (_) => const HomeView()),
             (route) => false,
       );
     } else {
