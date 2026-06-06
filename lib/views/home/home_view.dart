@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../viewmodels/home_viewmodel.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../widget_tree.dart';
+import '../meal_scan/meal_scan_view.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -572,7 +573,10 @@ class _HomeContent extends StatelessWidget {
                 _buildActionButton(
                   label: '+ Log Meal',
                   onTap: () {
-                    // TODO: Navigator.push to MealLogView
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MealScanView()),
+                    );
                   },
                 ),
                 const SizedBox(width: 10),
