@@ -4,6 +4,7 @@ import '../models/meal_result.dart';
 import '../services/gemini_service.dart';
 import '../services/image_picker_service.dart';
 import '../services/meal_history_service.dart';
+import '../services/rate_limiter.dart';
 
 enum MealScanState { idle, picking, analysing, success, error }
 
@@ -11,6 +12,15 @@ class MealScanViewModel extends ChangeNotifier {
   final GeminiService      _geminiService  = GeminiService();
   final ImagePickerService _imageService   = ImagePickerService();
   final MealHistoryService _historyService = MealHistoryService();
+
+  // Throttle AI scans: at most one every few seconds, and a rolling hourly cap
+  // so a stuck loop or impatient tapping can't drain the API quota / budget.
+  final RateLimiter _scanLimiter = RateLimiter(
+    storageKey: 'meal_scan_calls',
+    minInterval: const Duration(seconds: 5),
+    maxRequests: 30,
+    window: const Duration(hours: 1),
+  );
 
   MealScanState    scanState        = MealScanState.idle;
   Uint8List?       selectedImageBytes;
@@ -50,9 +60,22 @@ class MealScanViewModel extends ChangeNotifier {
 
   Future<void> _analyseImage(Uint8List bytes) async {
     selectedImageBytes = bytes;
-    scanState          = MealScanState.analysing;
-    errorMessage       = null;
+
+    // ── Rate-limit gate before touching the API ──
+    final gate = await _scanLimiter.check();
+    if (!gate.allowed) {
+      errorMessage = gate.message ?? 'Please slow down and try again shortly.';
+      scanState    = MealScanState.error;
+      notifyListeners();
+      return;
+    }
+
+    scanState    = MealScanState.analysing;
+    errorMessage = null;
     notifyListeners();
+
+    // Consume a slot now so concurrent/rapid taps all count against the limit.
+    await _scanLimiter.record();
 
     try {
       final result = await _geminiService.analyzeImage(bytes);

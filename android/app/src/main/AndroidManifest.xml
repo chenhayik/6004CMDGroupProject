@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for Firebase, Firestore, Google sign-in and the Gemini API.
+         Flutter only auto-adds this to debug/profile builds, so it MUST be
+         declared here for release APKs to have network access. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
     <application
         android:label="mobile_application_group"

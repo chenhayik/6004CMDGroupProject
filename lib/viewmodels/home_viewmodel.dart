@@ -6,6 +6,7 @@ import 'package:pedometer/pedometer.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile.dart';
+import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/daily_log_service.dart';
 
@@ -27,11 +28,30 @@ class HomeViewModel extends ChangeNotifier {
   int consumedFat      = 0;
 
   // ── Steps ──
+  //
+  // The hardware step counter (Android TYPE_STEP_COUNTER / iOS CoreMotion)
+  // keeps counting even while the app is closed, but it reports a *cumulative*
+  // total since the last device reboot. To turn that into "steps today" we
+  // persist:
+  //   • step_date     — the day these values belong to (yyyy-MM-dd)
+  //   • step_baseline  — sensor reading when the current sensor session began
+  //   • step_offset    — steps already banked today from earlier sessions
+  //                      (e.g. before a reboot, which resets the sensor to 0)
+  //   • step_total     — last computed total today (for instant display + reboot recovery)
+  //
+  //   stepsToday = step_offset + (sensorReading - step_baseline)
+  //
+  // Keys live in SharedPreferences so the count survives the app being killed.
+  static const _kStepDate     = 'step_date';
+  static const _kStepBaseline = 'step_baseline';
+  static const _kStepOffset   = 'step_offset';
+  static const _kStepTotal    = 'step_total';
+
   int steps        = 0;
-  int _stepBaseline = -1;
-  String stepStatus = 'walking';
+  String stepStatus = 'stopped';
   StreamSubscription<StepCount>?         _stepSubscription;
   StreamSubscription<PedestrianStatus>?  _statusSubscription;
+  Timer? _stepRefreshTimer;
 
   // ── Daily log stream ──
   StreamSubscription<DailyTotals>? _dailyLogSubscription;
@@ -130,9 +150,12 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> _resetStepBaseline() async {
     final prefs = await SharedPreferences.getInstance();
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    await prefs.setString('step_date', today);
-    _stepBaseline = -1;  // forces re-capture on next step event
+    await prefs.setString(_kStepDate, today);
+    await prefs.setInt(_kStepOffset, 0);
+    await prefs.setInt(_kStepTotal, 0);
+    await prefs.remove(_kStepBaseline); // forces re-capture on next step event
     steps = 0;
+    notifyListeners();
   }
 
   // ─── Insight message ─────────────────────────────────────
@@ -165,45 +188,110 @@ class HomeViewModel extends ChangeNotifier {
 
   // ─── Pedometer ───────────────────────────────────────────
   Future<void> _initPedometer() async {
+    // Show the last saved total immediately so the UI isn't stuck at 0 while
+    // we wait for the first sensor event (the hardware kept counting while the
+    // app was closed, but we still need a reading to reconcile).
+    await _loadPersistedSteps();
+
     final status = await Permission.activityRecognition.request();
     if (!status.isGranted) return;
 
-    _stepSubscription = Pedometer.stepCountStream.listen(
-          (StepCount event) async {
-        final prefs   = await SharedPreferences.getInstance();
-        final today   = DateFormat('yyyy-MM-dd').format(DateTime.now());
-        final savedDate = prefs.getString('step_date');
+    _listenToStepCount();
 
-        if (savedDate != today) {
-          // New day — reset
-          await prefs.setString('step_date', today);
-          await prefs.setInt('step_baseline', event.steps);
-          _stepBaseline = event.steps;
-        }
-
-        if (_stepBaseline == -1) {
-          final saved = prefs.getInt('step_baseline');
-          if (saved == null) {
-            _stepBaseline = event.steps;
-            await prefs.setInt('step_baseline', event.steps);
-          } else {
-            _stepBaseline = saved;
-          }
-        }
-
-        steps = (event.steps - _stepBaseline).clamp(0, 999999);
-        notifyListeners();
-      },
-      onError: (e) => debugPrint('Step count error: $e'),
+    // The hardware step counter batches its events, so the live stream can lag
+    // by minutes while the app is open. Re-subscribing forces the sensor to
+    // emit its current reading immediately, so we poll on a short timer to keep
+    // the dashboard updating on its own (no app restart needed).
+    _stepRefreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _listenToStepCount(),
     );
 
+    // pedestrianStatusStream can error on devices without a step sensor (e.g.
+    // emulators). Its platform error escapes the stream handler, so the
+    // app-level zone guard in main() catches it; this onError covers the rest.
     _statusSubscription = Pedometer.pedestrianStatusStream.listen(
-          (PedestrianStatus event) {
+      (PedestrianStatus event) {
         stepStatus = event.status;
         notifyListeners();
       },
       onError: (e) => debugPrint('Pedestrian status error: $e'),
+      cancelOnError: false,
     );
+  }
+
+  void _listenToStepCount() {
+    _stepSubscription?.cancel();
+    _stepSubscription = Pedometer.stepCountStream.listen(
+      _handleStepCount,
+      onError: (e) {
+        debugPrint('Step count error: $e');
+        // No step sensor on this device — stop the re-subscribe poll so we
+        // don't churn / spam errors every few seconds.
+        _stepRefreshTimer?.cancel();
+        _stepRefreshTimer = null;
+        if (stepStatus != 'unavailable') {
+          stepStatus = 'unavailable';
+          notifyListeners();
+        }
+      },
+      cancelOnError: false,
+    );
+  }
+
+  // Restore today's total from disk for instant display on launch.
+  Future<void> _loadPersistedSteps() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    if (prefs.getString(_kStepDate) == today) {
+      steps = prefs.getInt(_kStepTotal) ?? 0;
+      notifyListeners();
+    }
+  }
+
+  // Reconcile a cumulative sensor reading into "steps today", surviving both
+  // the app being closed (the reading jumps forward) and device reboots (the
+  // reading drops back toward 0).
+  Future<void> _handleStepCount(StepCount event) async {
+    final prefs   = await SharedPreferences.getInstance();
+    final today   = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final reading = event.steps;
+
+    // ── New day: start a fresh count anchored to the current reading ──
+    if (prefs.getString(_kStepDate) != today) {
+      await prefs.setString(_kStepDate, today);
+      await prefs.setInt(_kStepBaseline, reading);
+      await prefs.setInt(_kStepOffset, 0);
+      await prefs.setInt(_kStepTotal, 0);
+      steps = 0;
+      notifyListeners();
+      return;
+    }
+
+    int baseline = prefs.getInt(_kStepBaseline) ?? -1;
+    int offset   = prefs.getInt(_kStepOffset) ?? 0;
+
+    // First reading of a new sensor session today (app start / no baseline yet).
+    if (baseline < 0) {
+      baseline = reading;
+      await prefs.setInt(_kStepBaseline, baseline);
+    }
+
+    // ── Reboot (or sensor reset): reading fell below the session baseline ──
+    // Bank whatever we'd already counted today, then re-anchor to the new low
+    // reading so steps taken before the reboot aren't lost.
+    if (reading < baseline) {
+      offset = prefs.getInt(_kStepTotal) ?? offset;
+      baseline = reading;
+      await prefs.setInt(_kStepOffset, offset);
+      await prefs.setInt(_kStepBaseline, baseline);
+    }
+
+    final total = (offset + (reading - baseline)).clamp(0, 999999);
+    await prefs.setInt(_kStepTotal, total);
+
+    steps = total;
+    notifyListeners();
   }
 
   // ─── Computed getters ────────────────────────────────────
@@ -229,12 +317,13 @@ class HomeViewModel extends ChangeNotifier {
 
   // ─── Sign out ─────────────────────────────────────────────
   Future<void> signOut() async {
-    await FirebaseAuth.instance.signOut();
+    await AuthService().signOut();
   }
 
   // ─── Dispose ──────────────────────────────────────────────
   @override
   void dispose() {
+    _stepRefreshTimer?.cancel();
     _stepSubscription?.cancel();
     _statusSubscription?.cancel();
     _dailyLogSubscription?.cancel();

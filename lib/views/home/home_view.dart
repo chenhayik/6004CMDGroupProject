@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../viewmodels/home_viewmodel.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../widget_tree.dart';
 import '../meal_scan/meal_scan_view.dart';
+import '../workout/workout_home_view.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -403,7 +403,7 @@ class _HomeContent extends StatelessWidget {
   }
 
   // ─── Bottom Nav ───────────────────────────────────────────
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(BuildContext context) {
     final items = [
       {'icon': Icons.home_rounded,        'label': 'Home',      'active': true},
       {'icon': Icons.restaurant_outlined, 'label': 'Nutrition', 'active': false},
@@ -411,6 +411,20 @@ class _HomeContent extends StatelessWidget {
       {'icon': Icons.radar,               'label': 'Radar',     'active': false},
       {'icon': Icons.person_outline,      'label': 'Profile',   'active': false},
     ];
+
+    void onTapItem(String label) {
+      if (label == 'Gym') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const WorkoutHomeView()),
+        );
+      } else if (label == 'Nutrition') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MealScanView()),
+        );
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -421,24 +435,29 @@ class _HomeContent extends StatelessWidget {
       child: Row(
         children: items.map((item) {
           final active = item['active'] as bool;
+          final label = item['label'] as String;
           return Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  item['icon'] as IconData,
-                  size: 22,
-                  color: active ? _green : Colors.black38,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item['label'] as String,
-                  style: TextStyle(
-                    fontSize: 10,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onTapItem(label),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    item['icon'] as IconData,
+                    size: 22,
                     color: active ? _green : Colors.black38,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: active ? _green : Colors.black38,
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }).toList(),
@@ -464,8 +483,8 @@ class _HomeContent extends StatelessWidget {
         elevation: 0,
         leading: GestureDetector(
           onTap: () async {
-            // 1. Sign out of Firebase
-            await FirebaseAuth.instance.signOut();
+            // 1. Sign out of Firebase (and Google)
+            await vm.signOut();
 
             // 2. Route back to the WidgetTree to handle the logged-out state
             if (context.mounted) {
@@ -500,7 +519,7 @@ class _HomeContent extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: _buildBottomNav(context),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: Column(
@@ -583,7 +602,11 @@ class _HomeContent extends StatelessWidget {
                 _buildActionButton(
                   label: '↗ Log Workout',
                   onTap: () {
-                    // TODO: Navigator.push to WorkoutLogView
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const WorkoutHomeView()),
+                    );
                   },
                 ),
               ],

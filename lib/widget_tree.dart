@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mobile_application_group/models/user_profile.dart';
 import 'package:mobile_application_group/services/auth_service.dart';
 import 'package:mobile_application_group/services/firestore_service.dart';
 import 'package:mobile_application_group/views/login/login_view.dart';
@@ -7,13 +8,36 @@ import 'package:mobile_application_group/views/onboarding/setup_profile_view.dar
 import 'package:mobile_application_group/views/home/home_view.dart';
 
 
-class WidgetTree extends StatelessWidget {
+class WidgetTree extends StatefulWidget {
   const WidgetTree({super.key});
+
+  @override
+  State<WidgetTree> createState() => _WidgetTreeState();
+}
+
+class _WidgetTreeState extends State<WidgetTree> {
+  // Created once, not per build, so we don't spin up a new auth stream
+  // subscription on every rebuild.
+  final AuthService _authService = AuthService();
+  late final Stream<User?> _authStream = _authService.authStateChanges;
+
+  // Cache the profile lookup per uid so a rebuild (e.g. after email
+  // verification) doesn't trigger a redundant Firestore read.
+  String? _cachedUid;
+  Future<UserProfile?>? _profileFuture;
+
+  Future<UserProfile?> _profileFor(String uid) {
+    if (_cachedUid != uid || _profileFuture == null) {
+      _cachedUid = uid;
+      _profileFuture = FirestoreService().getUserProfile(uid);
+    }
+    return _profileFuture!;
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: AuthService().authStateChanges,
+      stream: _authStream,
       builder: (context, authSnapshot) {
 
         // ── Still loading ──
@@ -28,11 +52,11 @@ class WidgetTree extends StatelessWidget {
           return const LoginView();
         }
 
-        // ── uid is taken from authSnapshot.data here ──
-        final String uid = authSnapshot.data!.uid;  // ← defined here
+        final User user = authSnapshot.data!;
+        final String uid = user.uid;
 
         return FutureBuilder(
-          future: FirestoreService().getUserProfile(uid),  // ← used here
+          future: _profileFor(uid),
           builder: (context, profileSnapshot) {
 
             if (profileSnapshot.connectionState == ConnectionState.waiting) {
