@@ -21,6 +21,9 @@ class CrossDomainHero extends StatelessWidget {
     this.height = 200,
   });
 
+  // Width of the right-hand % scale column (kept out of the plot area).
+  static const double _scaleW = 30;
+
   @override
   Widget build(BuildContext context) {
     final n = proteinSeries.length;
@@ -28,14 +31,19 @@ class CrossDomainHero extends StatelessWidget {
     final maxVol = vols.isEmpty ? 0.0 : vols.reduce((a, b) => a > b ? a : b);
     final volTop = maxVol <= 0 ? 1.0 : maxVol * 1.3;
 
-    // Protein adherence % (0..100+), capped at 100 for the line per spec.
+    // Protein adherence % (0..100), normalised onto the same 0..volTop axis so
+    // 100% sits at the top of the chart and 0% at the bottom.
     double? adherence(TrendPoint p) {
       if (!p.hasValue || p.target == null || p.target! <= 0) return null;
       return (p.value! / p.target! * 100).clamp(0, 100).toDouble();
     }
 
     final labelEvery = n <= 8 ? 1 : (n / 6).ceil();
+    final hasProtein = proteinSeries.any((p) => adherence(p) != null);
 
+    // Both charts are decoration-free and fill the SAME box, so their plot
+    // rectangles coincide exactly — no axis reservations to knock them out of
+    // alignment. Labels/scale are drawn outside the box.
     final barChart = BarChart(
       BarChartData(
         maxY: volTop,
@@ -49,47 +57,7 @@ class CrossDomainHero extends StatelessWidget {
               FlLine(color: AnalyticsColors.border, strokeWidth: 1),
         ),
         borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 28,
-              interval: 50,
-              getTitlesWidget: (v, meta) {
-                // Right axis is the protein % scale (0,50,100).
-                final pct = (v / volTop * 100).round();
-                if (![0, 50, 100].contains(pct)) {
-                  return const SizedBox.shrink();
-                }
-                return Text('$pct%',
-                    style: const TextStyle(
-                        fontSize: 9, color: AnalyticsColors.protein));
-              },
-            ),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 20,
-              getTitlesWidget: (v, meta) {
-                final i = v.toInt();
-                if (i < 0 || i >= n || i % labelEvery != 0) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(proteinSeries[i].label,
-                      style: const TextStyle(
-                          fontSize: 9, color: AnalyticsColors.muted)),
-                );
-              },
-            ),
-          ),
-        ),
+        titlesData: const FlTitlesData(show: false),
         barGroups: [
           for (var i = 0; i < volumeSeries.length; i++)
             BarChartGroupData(x: i, barRods: [
@@ -106,7 +74,8 @@ class CrossDomainHero extends StatelessWidget {
       ),
     );
 
-    // Protein line on the SAME 0..volTop scale: map % -> y = %/100 * volTop.
+    // Map % -> y = %/100 * volTop. minX/maxX are inset by half a slot so each
+    // point sits under the centre of its spaceAround bar.
     final proteinSpots = <FlSpot>[];
     for (var i = 0; i < proteinSeries.length; i++) {
       final a = adherence(proteinSeries[i]);
@@ -117,8 +86,8 @@ class CrossDomainHero extends StatelessWidget {
       LineChartData(
         maxY: volTop,
         minY: 0,
-        minX: 0,
-        maxX: (n - 1).toDouble(),
+        minX: -0.5,
+        maxX: n - 0.5,
         lineTouchData: const LineTouchData(enabled: false),
         gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
@@ -126,8 +95,7 @@ class CrossDomainHero extends StatelessWidget {
         lineBarsData: [
           LineChartBarData(
             spots: proteinSpots,
-            isCurved: true,
-            curveSmoothness: 0.2,
+            isCurved: false,
             color: AnalyticsColors.protein,
             barWidth: proteinSpots.length < 2 ? 0 : 3,
             dotData: FlDotData(
@@ -149,14 +117,63 @@ class CrossDomainHero extends StatelessWidget {
       children: [
         SizedBox(
           height: height,
-          child: Stack(
+          child: Row(
             children: [
-              Positioned.fill(child: barChart),
-              // Inset the line so it aligns with bars inside the right axis.
-              Positioned.fill(
-                right: 28,
-                child: lineChart,
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: barChart),
+                    if (hasProtein) Positioned.fill(child: lineChart),
+                  ],
+                ),
               ),
+              // Right-edge protein % scale (top=100%, bottom=0%).
+              SizedBox(
+                width: _scaleW,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const [
+                    Padding(
+                      padding: EdgeInsets.only(left: 6),
+                      child: Text('100%',
+                          style: TextStyle(
+                              fontSize: 9, color: AnalyticsColors.protein)),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.only(left: 6),
+                      child: Text('50%',
+                          style: TextStyle(
+                              fontSize: 9, color: AnalyticsColors.protein)),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.only(left: 6),
+                      child: Text('0%',
+                          style: TextStyle(
+                              fontSize: 9, color: AnalyticsColors.protein)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Day labels, aligned under the bars (same width as the plot area).
+        Padding(
+          padding: const EdgeInsets.only(right: _scaleW),
+          child: Row(
+            children: [
+              for (var i = 0; i < n; i++)
+                Expanded(
+                  child: Center(
+                    child: i % labelEvery == 0
+                        ? Text(proteinSeries[i].label,
+                            style: const TextStyle(
+                                fontSize: 9, color: AnalyticsColors.muted))
+                        : const SizedBox.shrink(),
+                  ),
+                ),
             ],
           ),
         ),
