@@ -24,11 +24,21 @@ service cloud.firestore {
           && isIntInRange(d.fat_g, 0, 1000);
     }
 
+    // Validate a daily_log write. Each field is optional (the doc is built up
+    // by separate merge writes — meals add consumed_*, the dashboard adds
+    // steps_net / water_liters), but any field that IS present must be sane.
+    function dailyNumOk(d, key, lo, hi) {
+      return !(key in d)
+          || (d[key] is number && d[key] >= lo && d[key] <= hi);
+    }
+
     function isValidDailyLog(d) {
-      return isIntInRange(d.consumed_calories, 0, 1000000)
-          && isIntInRange(d.consumed_protein_g, 0, 1000000)
-          && isIntInRange(d.consumed_carbs_g, 0, 1000000)
-          && isIntInRange(d.consumed_fat_g, 0, 1000000);
+      return dailyNumOk(d, 'consumed_calories', 0, 1000000)
+          && dailyNumOk(d, 'consumed_protein_g', 0, 1000000)
+          && dailyNumOk(d, 'consumed_carbs_g', 0, 1000000)
+          && dailyNumOk(d, 'consumed_fat_g', 0, 1000000)
+          && dailyNumOk(d, 'steps_net', 0, 1000000)
+          && dailyNumOk(d, 'water_liters', 0, 100);
     }
 
     // A user may only touch their OWN document tree, and only while signed in.
