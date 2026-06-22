@@ -9,10 +9,12 @@ import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/daily_log_service.dart';
+import '../services/notification_manager.dart';
 
 class HomeViewModel extends ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
   final DailyLogService  _dailyLogService  = DailyLogService();
+  final NotificationManager _notifications = NotificationManager();
 
   // ── Profile / Targets ──
   UserProfile? userProfile;
@@ -78,7 +80,11 @@ class HomeViewModel extends ChangeNotifier {
     _loadUserData();
     _initPedometer();
     _scheduleMidnightReset();
+    _notifications.init(); // request permission + lay down daily reminders
   }
+
+  /// Fire a sample notification so the user can confirm they're enabled.
+  Future<void> sendTestNotification() => _notifications.sendTest();
 
   // ─── Load profile targets ────────────────────────────────
   Future<void> _loadUserData() async {
@@ -124,6 +130,18 @@ class HomeViewModel extends ChangeNotifier {
         consumedFat      = totals.fatG;
         _buildInsightMessage();
         notifyListeners();
+
+        // Evaluate contextual push notifications against the fresh totals.
+        _notifications.evaluate(
+          calories: consumedCalories,
+          protein: consumedProtein,
+          carbs: consumedCarbs,
+          fat: consumedFat,
+          targetCalories: targetCalories,
+          targetProtein: proteinTarget,
+          targetCarbs: carbsTarget,
+          targetFat: fatTarget,
+        );
       },
       onError: (e) => debugPrint('Daily log stream error: $e'),
     );
