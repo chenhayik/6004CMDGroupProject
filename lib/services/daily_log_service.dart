@@ -50,6 +50,19 @@ class DailyLogService {
     await _todayRef(uid).set(data, SetOptions(merge: true));
   }
 
+  // ── Add water (litres) to today's running total. ──
+  Future<void> addWater(String uid, double litres) async {
+    await _todayRef(uid).set(
+      {
+        'water_liters': FieldValue.increment(litres),
+        'water_updated_at': FieldValue.serverTimestamp(),
+        'date': _todayKey,
+        'updated_at': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   // ── Real-time stream of today's consumed totals ──
   Stream<DailyTotals> todayStream(String uid) {
     return _todayRef(uid).snapshots().map((doc) {
@@ -74,12 +87,14 @@ class DailyTotals {
   final int proteinG;
   final int carbsG;
   final int fatG;
+  final double waterLitres;
 
   const DailyTotals({
     required this.calories,
     required this.proteinG,
     required this.carbsG,
     required this.fatG,
+    this.waterLitres = 0.0,
   });
 
   factory DailyTotals.zero() => const DailyTotals(
@@ -87,6 +102,7 @@ class DailyTotals {
     proteinG: 0,
     carbsG: 0,
     fatG: 0,
+    waterLitres: 0.0,
   );
 
   factory DailyTotals.fromMap(Map<String, dynamic> map) {
@@ -95,6 +111,7 @@ class DailyTotals {
       proteinG: _parseInt(map['consumed_protein_g']),
       carbsG:   _parseInt(map['consumed_carbs_g']),
       fatG:     _parseInt(map['consumed_fat_g']),
+      waterLitres: _parseDouble(map['water_liters']),
     );
   }
 
@@ -103,5 +120,11 @@ class DailyTotals {
     if (v is int) return v;
     if (v is double) return v.round();
     return int.tryParse(v.toString()) ?? 0;
+  }
+
+  static double _parseDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0.0;
   }
 }

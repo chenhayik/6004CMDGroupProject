@@ -30,6 +30,7 @@ class NotificationManager {
   static const _idHydration1 = 1010;
   static const _idHydration2 = 1011;
   static const _idHydration3 = 1012;
+  static const _idHydrationNow = 1013;
   static const _idTest = 9999;
 
   static final DateFormat _dayKey = DateFormat('yyyy-MM-dd');
@@ -80,6 +81,8 @@ class NotificationManager {
     required int targetProtein,
     required int targetCarbs,
     required int targetFat,
+    double waterLitres = 0,
+    double waterGoalLitres = 0,
     DateTime? nowOverride,
   }) async {
     if (targetCalories <= 0) return; // targets not set up yet
@@ -141,6 +144,36 @@ class NotificationManager {
         'Did you eat?',
         "Haven't logged any meals yet today — did you eat?",
       );
+    }
+
+    // ── Hydration: now data-driven from logged water ──
+    if (waterGoalLitres > 0) {
+      if (waterLitres >= waterGoalLitres) {
+        // Goal met — silence today's hydration reminders.
+        await _service.cancel(_idHydration1);
+        await _service.cancel(_idHydration2);
+        await _service.cancel(_idHydration3);
+      } else {
+        // Nudge if it's daytime and 2h+ since the last water log (throttled
+        // to at most one nudge every 2h).
+        final prefs = await SharedPreferences.getInstance();
+        final nowMs = now.millisecondsSinceEpoch;
+        const twoHours = 2 * 60 * 60 * 1000;
+        final lastWater = prefs.getInt('last_water_log_ms') ?? 0;
+        final lastNudge = prefs.getInt('notif_hydration_last_ms') ?? 0;
+        final daytime = now.hour >= 9 && now.hour < 21;
+        if (daytime &&
+            nowMs - lastWater >= twoHours &&
+            nowMs - lastNudge >= twoHours) {
+          await _service.showNow(
+            id: _idHydrationNow,
+            title: 'Time to hydrate',
+            body: "You're at ${waterLitres.toStringAsFixed(1)}L of "
+                "${waterGoalLitres.toStringAsFixed(1)}L today — grab a glass! 💧",
+          );
+          await prefs.setInt('notif_hydration_last_ms', nowMs);
+        }
+      }
     }
   }
 

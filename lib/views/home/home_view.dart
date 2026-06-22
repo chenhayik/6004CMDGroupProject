@@ -487,6 +487,80 @@ class _HomeContent extends StatelessWidget {
     );
   }
 
+  // Quick-add water sheet (logs to today's daily_log via the ViewModel).
+  void _showWaterSheet(BuildContext context, HomeViewModel vm) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) {
+        const water = Color(0xFF38BDF8);
+        Widget addButton(String label, double litres) {
+          return Expanded(
+            child: GestureDetector(
+              onTap: () {
+                vm.addWater(litres);
+                Navigator.pop(sheetCtx);
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  color: water.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: water.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.water_drop, color: water, size: 22),
+                    const SizedBox(height: 6),
+                    Text(label,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        )),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Add Water',
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87)),
+              const SizedBox(height: 4),
+              Text(
+                '${vm.waterLiters.toStringAsFixed(1)}L of '
+                '${HomeViewModel.waterGoalLitres.toStringAsFixed(1)}L today',
+                style: const TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  addButton('+250 ml', 0.25),
+                  addButton('+500 ml', 0.5),
+                  addButton('+1 L', 1.0),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // Entry point into Analytics. A null [initialTab] restores the remembered
   // tab (plain nav button); a non-null value is a deep-link target (§4.2).
   void _openAnalytics(BuildContext context, {int? initialTab}) {
@@ -628,9 +702,10 @@ class _HomeContent extends StatelessWidget {
                 _buildActivityCard(
                   icon: Icons.water_drop_outlined,
                   value: '${vm.waterLiters.toStringAsFixed(1)}L',
-                  label: 'WATER',
+                  label: 'WATER · TAP +',
                   color: const Color(0xFF60A5FA),
-                  progress: (vm.waterLiters / 2.5).clamp(0.0, 1.0),
+                  progress: vm.waterProgress,
+                  onTap: () => _showWaterSheet(context, vm),
                 ),
               ],
             ),

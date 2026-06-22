@@ -66,8 +66,21 @@ class HomeViewModel extends ChangeNotifier {
   // ── Midnight reset timer ──
   Timer? _midnightTimer;
 
-  // ── Water ──
+  // ── Water (driven by the daily_logs stream) ──
   double waterLiters = 0.0;
+  static const double waterGoalLitres = 2.5;
+  double get waterProgress =>
+      (waterLiters / waterGoalLitres).clamp(0.0, 1.0);
+
+  /// Add water (litres) to today's log; the stream reflects the new total.
+  Future<void> addWater(double litres) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+        'last_water_log_ms', DateTime.now().millisecondsSinceEpoch);
+    await _dailyLogService.addWater(uid, litres);
+  }
 
   // ── Insight banner ──
   bool   showInsightBanner = false;
@@ -128,6 +141,7 @@ class HomeViewModel extends ChangeNotifier {
         consumedProtein  = totals.proteinG;
         consumedCarbs    = totals.carbsG;
         consumedFat      = totals.fatG;
+        waterLiters      = totals.waterLitres;
         _buildInsightMessage();
         notifyListeners();
 
@@ -141,6 +155,8 @@ class HomeViewModel extends ChangeNotifier {
           targetProtein: proteinTarget,
           targetCarbs: carbsTarget,
           targetFat: fatTarget,
+          waterLitres: waterLiters,
+          waterGoalLitres: waterGoalLitres,
         );
       },
       onError: (e) => debugPrint('Daily log stream error: $e'),
