@@ -329,7 +329,14 @@ class AnalyticsService {
       range: range,
       windowStart: windowStart,
       windowEnd: windowEnd,
-      totalDays: range.windowDays,
+      // Count only days that have actually elapsed in the period, so a
+      // mid-month view reads "X of 22 days" rather than "X of 30".
+      totalDays: (() {
+        final todayEnd = DateTime(now.year, now.month, now.day)
+            .add(const Duration(days: 1));
+        final cap = todayEnd.isBefore(windowEnd) ? todayEnd : windowEnd;
+        return cap.difference(windowStart).inDays;
+      })(),
       daysLogged: currentDays.length,
       caloriesSeries: caloriesSeries,
       proteinSeries: proteinSeries,

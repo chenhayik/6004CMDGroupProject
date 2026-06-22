@@ -2,18 +2,21 @@ import 'package:intl/intl.dart';
 
 /// Global time range for the whole Analytics screen.
 ///
-/// Each range resolves to a window (how far back) and a bucket granularity
-/// (how points are grouped). See §4.1 of the build spec.
+/// Ranges are CALENDAR-ALIGNED (not rolling windows):
+///   • Week  → the current week, Monday–Sunday, bucketed per day.
+///   • Month → the current calendar month from the 1st, bucketed per day.
+///   • 3 Months → the current calendar quarter (Jan–Mar, Apr–Jun, Jul–Sep,
+///                Oct–Dec), bucketed per month (3 bars).
 enum AnalyticsRange { week, month, threeMonths }
 
 /// How a range groups its points.
-enum AnalyticsBucket { day, week }
+enum AnalyticsBucket { day, month }
 
 /// One resolved bucket: a half-open date window [start, end) plus a short label.
 class AnalyticsBucketWindow {
   final DateTime start; // inclusive, local midnight
   final DateTime end; // exclusive, local midnight
-  final String label; // axis label, e.g. "Mon" or "16 Jun"
+  final String label; // axis label, e.g. "Mon", "16" or "Apr"
 
   const AnalyticsBucketWindow({
     required this.start,
@@ -21,7 +24,7 @@ class AnalyticsBucketWindow {
     required this.label,
   });
 
-  /// Matches a `yyyy-MM-dd` day key against this bucket.
+  /// Matches a day against this bucket.
   bool containsDay(DateTime day) =>
       !day.isBefore(start) && day.isBefore(end);
 }
@@ -38,78 +41,101 @@ extension AnalyticsRangeX on AnalyticsRange {
     }
   }
 
-  /// Number of calendar days in the window.
-  int get windowDays {
-    switch (this) {
-      case AnalyticsRange.week:
-        return 7;
-      case AnalyticsRange.month:
-        return 30;
-      case AnalyticsRange.threeMonths:
-        return 91; // ~13 weeks
-    }
-  }
-
   AnalyticsBucket get bucket {
     switch (this) {
       case AnalyticsRange.week:
       case AnalyticsRange.month:
         return AnalyticsBucket.day;
       case AnalyticsRange.threeMonths:
-        return AnalyticsBucket.week;
+        return AnalyticsBucket.month;
     }
   }
 
-  /// Local midnight of today.
-  static DateTime _today() {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day);
+  static DateTime _dateOnly(DateTime? now) {
+    final d = now ?? DateTime.now();
+    return DateTime(d.year, d.month, d.day);
   }
 
-  /// Inclusive start of the window (local midnight).
+  /// First month (1..10) of the calendar quarter containing [month].
+  static int _quarterFirstMonth(int month) => ((month - 1) ~/ 3) * 3 + 1;
+
+  /// Inclusive start of the period (local midnight).
   DateTime windowStart([DateTime? now]) {
-    final today = now == null
-        ? _today()
-        : DateTime(now.year, now.month, now.day);
-    return today.subtract(Duration(days: windowDays - 1));
-  }
-
-  /// Exclusive end of the window (tomorrow's local midnight).
-  DateTime windowEnd([DateTime? now]) {
-    final today = now == null
-        ? _today()
-        : DateTime(now.year, now.month, now.day);
-    return today.add(const Duration(days: 1));
-  }
-
-  /// Human-readable window subtitle, e.g. "16–22 Jun".
-  String windowSubtitle([DateTime? now]) {
-    final start = windowStart(now);
-    final endInclusive = windowEnd(now).subtract(const Duration(days: 1));
-    final dayFmt = DateFormat('d');
-    final monthFmt = DateFormat('MMM');
-    if (start.month == endInclusive.month) {
-      return '${dayFmt.format(start)}–${dayFmt.format(endInclusive)} '
-          '${monthFmt.format(endInclusive)}';
+    final today = _dateOnly(now);
+    switch (this) {
+      case AnalyticsRange.week:
+        // Monday of the current week (DateTime.weekday: Mon=1 … Sun=7).
+        return today.subtract(Duration(days: today.weekday - 1));
+      case AnalyticsRange.month:
+        return DateTime(today.year, today.month, 1);
+      case AnalyticsRange.threeMonths:
+        return DateTime(today.year, _quarterFirstMonth(today.month), 1);
     }
-    final shortFmt = DateFormat('d MMM');
-    return '${shortFmt.format(start)} – ${shortFmt.format(endInclusive)}';
   }
 
-  /// The previous equivalent window (same length, immediately before),
-  /// used to compute period-over-period deltas.
+  /// Exclusive end of the period (local midnight).
+  DateTime windowEnd([DateTime? now]) {
+    final today = _dateOnly(now);
+    switch (this) {
+      case AnalyticsRange.week:
+        return windowStart(now).add(const Duration(days: 7));
+      case AnalyticsRange.month:
+        return DateTime(today.year, today.month + 1, 1);
+      case AnalyticsRange.threeMonths:
+        return DateTime(today.year, _quarterFirstMonth(today.month) + 3, 1);
+    }
+  }
+
+  /// Human-readable subtitle for the resolved period.
+  String windowSubtitle([DateTime? now]) {
+    switch (this) {
+      case AnalyticsRange.week:
+        final start = windowStart(now);
+        final endInclusive = windowEnd(now).subtract(const Duration(days: 1));
+        final d = DateFormat('d');
+        final mon = DateFormat('MMM');
+        if (start.month == endInclusive.month) {
+          return '${d.format(start)}–${d.format(endInclusive)} '
+              '${mon.format(endInclusive)}';
+        }
+        final dm = DateFormat('d MMM');
+        return '${dm.format(start)} – ${dm.format(endInclusive)}';
+      case AnalyticsRange.month:
+        return DateFormat('MMMM yyyy').format(windowStart(now));
+      case AnalyticsRange.threeMonths:
+        final start = windowStart(now);
+        final lastMonth = windowEnd(now).subtract(const Duration(days: 1));
+        final mon = DateFormat('MMM');
+        return '${mon.format(start)}–${mon.format(lastMonth)} ${start.year}';
+    }
+  }
+
+  /// The previous equivalent calendar period (used for deltas).
   AnalyticsBucketWindow previousWindow([DateTime? now]) {
     final start = windowStart(now);
-    final prevEnd = start; // exclusive
-    final prevStart = start.subtract(Duration(days: windowDays));
-    return AnalyticsBucketWindow(
-      start: prevStart,
-      end: prevEnd,
-      label: 'prev',
-    );
+    switch (this) {
+      case AnalyticsRange.week:
+        return AnalyticsBucketWindow(
+          start: start.subtract(const Duration(days: 7)),
+          end: start,
+          label: 'prev',
+        );
+      case AnalyticsRange.month:
+        return AnalyticsBucketWindow(
+          start: DateTime(start.year, start.month - 1, 1),
+          end: start,
+          label: 'prev',
+        );
+      case AnalyticsRange.threeMonths:
+        return AnalyticsBucketWindow(
+          start: DateTime(start.year, start.month - 3, 1),
+          end: start,
+          label: 'prev',
+        );
+    }
   }
 
-  /// Builds the ordered list of buckets covering the window.
+  /// Builds the ordered list of buckets covering the period.
   List<AnalyticsBucketWindow> buckets([DateTime? now]) {
     final start = windowStart(now);
     final end = windowEnd(now);
@@ -117,8 +143,8 @@ extension AnalyticsRangeX on AnalyticsRange {
 
     if (bucket == AnalyticsBucket.day) {
       final dayFmt = this == AnalyticsRange.week
-          ? DateFormat('EEE') // Mon, Tue
-          : DateFormat('d'); // 1..30
+          ? DateFormat('EEE') // Mon, Tue …
+          : DateFormat('d'); // 1 … 31
       var cursor = start;
       while (cursor.isBefore(end)) {
         final next = cursor.add(const Duration(days: 1));
@@ -130,16 +156,15 @@ extension AnalyticsRangeX on AnalyticsRange {
         cursor = next;
       }
     } else {
-      // Weekly buckets — align to 7-day blocks from the window start.
-      final weekFmt = DateFormat('d MMM');
+      // Monthly buckets for the quarter (3 of them).
+      final monFmt = DateFormat('MMM'); // Apr, May, Jun
       var cursor = start;
       while (cursor.isBefore(end)) {
-        var next = cursor.add(const Duration(days: 7));
-        if (next.isAfter(end)) next = end;
+        final next = DateTime(cursor.year, cursor.month + 1, 1);
         result.add(AnalyticsBucketWindow(
           start: cursor,
           end: next,
-          label: weekFmt.format(cursor),
+          label: monFmt.format(cursor),
         ));
         cursor = next;
       }
