@@ -33,6 +33,9 @@ class AnalyticsService {
   CollectionReference<Map<String, dynamic>> _logs(String uid) =>
       _db.collection('users').doc(uid).collection('daily_logs');
 
+  CollectionReference<Map<String, dynamic>> _weightLogs(String uid) =>
+      _db.collection('users').doc(uid).collection('weight_logs');
+
   Future<AnalyticsSummary> buildSummary({
     required String uid,
     required AnalyticsRange range,
@@ -78,6 +81,9 @@ class AnalyticsService {
     //    (muscleGroup isn't stored on the workout doc). ──
     final muscleById = await _muscleLookup();
 
+    // ── Body-weight entries within the current window ──
+    final weightSeries = await _readWeightSeries(uid, windowStart, windowEnd);
+
     return _aggregate(
       range: range,
       now: now,
@@ -89,8 +95,40 @@ class AnalyticsService {
       targetProteinG: targetProteinG,
       workouts: workouts,
       muscleById: muscleById,
+      weightSeries: weightSeries,
       weightUnit: weightUnit,
     );
+  }
+
+  /// Reads dated weight entries inside the window, oldest → newest.
+  Future<List<TrendPoint>> _readWeightSeries(
+      String uid, DateTime start, DateTime end) async {
+    try {
+      final snap = await _weightLogs(uid)
+          .where('date',
+              isGreaterThanOrEqualTo: _dayKey.format(start))
+          .where('date', isLessThan: _dayKey.format(end))
+          .limit(200)
+          .get();
+      final points = <TrendPoint>[];
+      for (final doc in snap.docs) {
+        final m = doc.data();
+        final dayKey = (m['date'] as String?) ?? doc.id;
+        final date = DateTime.tryParse(dayKey);
+        final kg = (m['weight_kg'] as num?)?.toDouble();
+        if (date != null && kg != null) {
+          points.add(TrendPoint(
+            label: DateFormat('d MMM').format(date),
+            date: DateTime(date.year, date.month, date.day),
+            value: kg,
+          ));
+        }
+      }
+      points.sort((a, b) => a.date.compareTo(b.date));
+      return points;
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// Builds an exerciseId → muscle-group-label lookup from presets + custom
@@ -117,6 +155,7 @@ class AnalyticsService {
     required int targetProteinG,
     required List<Workout> workouts,
     required Map<String, String> muscleById,
+    required List<TrendPoint> weightSeries,
     required String weightUnit,
   }) {
     final buckets = range.buckets(now);
@@ -367,6 +406,11 @@ class AnalyticsService {
       exerciseNames: exerciseNames,
       muscleVolume: muscleVolume,
       workoutHeat: workoutHeat,
+      weightSeries: weightSeries,
+      weightLatestKg: weightSeries.isEmpty ? null : weightSeries.last.value,
+      weightDeltaKg: weightSeries.length < 2
+          ? null
+          : (weightSeries.last.value! - weightSeries.first.value!),
       nutritionTakeaway: _nutritionTakeaway(
           daysOnTarget, currentDays.length, avgProtCur, targetProteinG),
       workoutTakeaway: _workoutTakeaway(workouts.length, prs.length),

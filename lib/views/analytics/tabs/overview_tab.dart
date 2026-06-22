@@ -8,6 +8,9 @@ import '../widgets/analytic_card.dart';
 import '../widgets/analytics_common.dart';
 import '../widgets/activity_tiles.dart';
 import '../widgets/cross_domain_hero.dart';
+import '../widgets/trend_line_chart.dart';
+
+const _weightColor = Color(0xFF6366F1);
 
 class OverviewTab extends StatelessWidget {
   /// Jump to another segment (0=Overview, 1=Nutrition, 2=Workout).
@@ -62,6 +65,26 @@ class OverviewTab extends StatelessWidget {
         hasData: s.hasActivity,
       ),
       const SizedBox(height: 12),
+
+      // 2b. Body-weight trend (only once there's data to plot).
+      if (s.hasWeight) ...[
+        AnalyticCard(
+          title: 'Weight',
+          stat: s.weightLatestKg!.toStringAsFixed(1),
+          statUnit: 'kg',
+          accent: _weightColor,
+          chart: TrendLineChart(
+            points: s.weightSeries,
+            color: _weightColor,
+            unit: 'kg',
+          ),
+          takeaway: s.weightDeltaKg == null
+              ? 'Log another weigh-in to see your trend.'
+              : '${s.weightDeltaKg! >= 0 ? '+' : ''}'
+                  '${s.weightDeltaKg!.toStringAsFixed(1)} kg over this period.',
+        ),
+        const SizedBox(height: 12),
+      ],
 
       // 3. Summary cards — tappable, jump to the matching tab.
       Row(

@@ -43,7 +43,18 @@ class MacroCalculatorViewModel extends ChangeNotifier {
   late int carbsG;
   late int fatG;
 
+  /// True when launched from "Edit goal & targets" rather than onboarding.
+  bool get isEditMode => formData['editMode'] == true;
+
   MacroCalculatorViewModel({required this.formData}) {
+    // Preselect the user's saved macro ratio when editing.
+    final saved = formData['macroRatio']?.toString();
+    if (saved != null) {
+      macroRatio = MacroRatio.values.firstWhere(
+        (r) => r.name == saved,
+        orElse: () => MacroRatio.balanced,
+      );
+    }
     calculateTargets();   // run on init
   }
 
@@ -113,19 +124,6 @@ class MacroCalculatorViewModel extends ChangeNotifier {
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
 
-      // Save base profile
-      final profile = UserProfile(
-        uid: uid,
-        age: formData['age'],
-        biologicalSex: formData['biologicalSex'],
-        height: formData['height'],
-        weight: formData['weight'],
-        activityLevel: formData['activityLevel'],
-        goal: formData['goal'],
-      );
-      await _firestoreService.createUserProfile(profile);
-
-      // Save nutrition targets
       final targets = NutritionTargets(
         bmr: bmr,
         tdee: tdee,
@@ -135,7 +133,26 @@ class MacroCalculatorViewModel extends ChangeNotifier {
         fatG: fatG,
         macroRatio: macroRatio.name,
       );
-      await _firestoreService.updateNutritionTargets(uid, targets);
+
+      if (isEditMode) {
+        // Reassign goal + targets only — don't overwrite the rest of the
+        // profile (createdAt, etc.).
+        await _firestoreService.updateGoalAndTargets(
+            uid, formData['goal'].toString(), targets);
+      } else {
+        // Onboarding — create the base profile, then save targets.
+        final profile = UserProfile(
+          uid: uid,
+          age: formData['age'],
+          biologicalSex: formData['biologicalSex'],
+          height: formData['height'],
+          weight: formData['weight'],
+          activityLevel: formData['activityLevel'],
+          goal: formData['goal'],
+        );
+        await _firestoreService.createUserProfile(profile);
+        await _firestoreService.updateNutritionTargets(uid, targets);
+      }
 
       isLoading = false;
       notifyListeners();

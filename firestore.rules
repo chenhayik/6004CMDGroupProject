@@ -63,6 +63,15 @@ service cloud.firestore {
                      && isValidDailyLog(request.resource.data);
       }
 
+      // ── Body-weight history (one doc per day, latest wins) ──
+      match /weight_logs/{dateId} {
+        allow read, delete: if signedInAs(userId);
+        allow create, update: if signedInAs(userId)
+                              && request.resource.data.weight_kg is number
+                              && request.resource.data.weight_kg > 0
+                              && request.resource.data.weight_kg <= 500;
+      }
+
       // ── Gym: workout sessions ──
       match /workouts/{workoutId} {
         allow read, write: if signedInAs(userId)

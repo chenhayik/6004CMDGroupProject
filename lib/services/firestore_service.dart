@@ -22,6 +22,18 @@ class FirestoreService {
     });
   }
 
+  // ── Reassign goal + recalculated targets (profile edit; no full overwrite) ──
+  Future<void> updateGoalAndTargets(
+    String uid,
+    String goal,
+    NutritionTargets targets,
+  ) async {
+    await _db.collection('users').doc(uid).update({
+      'goal': goal,
+      'nutritionTargets': targets.toMap(),
+    });
+  }
+
   // ── Fetch full profile ──
   Future<UserProfile?> getUserProfile(String uid) async {
     final doc = await _db.collection('users').doc(uid).get();

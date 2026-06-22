@@ -14,7 +14,14 @@ class SelectGoalView extends StatefulWidget {
 
 class _SelectGoalViewState extends State<SelectGoalView> {
   String? _selectedGoal;
-  bool _isLoading = false;
+  final bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Preselect the saved goal when editing from the Profile hub.
+    _selectedGoal = widget.formData['goal']?.toString();
+  }
 
   final List<Map<String, dynamic>> _goals = [
     {

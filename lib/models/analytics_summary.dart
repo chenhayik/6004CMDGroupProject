@@ -70,6 +70,11 @@ class AnalyticsSummary {
   final Map<String, double> muscleVolume; // muscleGroup -> volume
   final List<HeatCell> workoutHeat; // workout-day frequency
 
+  // ── Body weight ──
+  final List<TrendPoint> weightSeries; // logged weights within the window
+  final double? weightLatestKg; // most recent weight in the window
+  final double? weightDeltaKg; // latest − earliest in the window
+
   // ── Plain-English takeaways (§10 rules baked in service) ──
   final String nutritionTakeaway;
   final String workoutTakeaway;
@@ -110,6 +115,9 @@ class AnalyticsSummary {
     required this.exerciseNames,
     required this.muscleVolume,
     required this.workoutHeat,
+    required this.weightSeries,
+    required this.weightLatestKg,
+    required this.weightDeltaKg,
     required this.nutritionTakeaway,
     required this.workoutTakeaway,
     required this.overviewTakeaway,
@@ -123,4 +131,6 @@ class AnalyticsSummary {
 
   bool get hasActivity =>
       stepsSeries.any((p) => p.hasValue) || waterSeries.any((p) => p.hasValue);
+
+  bool get hasWeight => weightSeries.any((p) => p.hasValue);
 }
