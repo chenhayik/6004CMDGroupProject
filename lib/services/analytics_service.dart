@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import '../models/analytics_range.dart';
@@ -9,10 +9,10 @@ import '../models/exercise.dart';
 import 'workout_service.dart';
 import 'exercise_library_service.dart';
 
-/// The ONLY class permitted to read Firestore for Analytics (Â§2 layering).
+/// The ONLY class permitted to read Firestore for Analytics (§2 layering).
 ///
 /// It performs date-bounded, `.limit()`-ed reads, buckets the rows per the
-/// active range, applies the data-hygiene rules (Â§10), and returns an
+/// active range, applies the data-hygiene rules (§10), and returns an
 /// immutable [AnalyticsSummary]. No UI, no Provider.
 ///
 /// NOTE on schema: the live app stores `daily_logs` with FLAT fields
@@ -43,7 +43,7 @@ class AnalyticsService {
     final windowEnd = range.windowEnd(now);
     final prev = range.previousWindow(now);
 
-    // â”€â”€ Targets from the user profile doc â”€â”€
+    // ── Targets from the user profile doc ──
     final profileSnap = await _db.collection('users').doc(uid).get();
     final profile = profileSnap.data() ?? const {};
     final targets =
@@ -51,8 +51,8 @@ class AnalyticsService {
     final targetKcal = _asInt(targets['targetCalories']);
     final targetProteinG = _asInt(targets['proteinG']);
 
-    // â”€â”€ Daily logs spanning BOTH the current and previous window in one read
-    //    (so we can compute period-over-period deltas cheaply). â”€â”€
+    // ── Daily logs spanning BOTH the current and previous window in one read
+    //    (so we can compute period-over-period deltas cheaply). ──
     final logsSnap = await _logs(uid)
         .where('date',
             isGreaterThanOrEqualTo: _dayKey.format(prev.start))
@@ -66,16 +66,16 @@ class AnalyticsService {
       if (log != null && log.logged) byDay[log.dayKey] = log;
     }
 
-    // â”€â”€ Workouts: read via the existing WorkoutService (stores startedAt as
-    //    epoch-millis, not Timestamp), then filter to the current window. â”€â”€
+    // ── Workouts: read via the existing WorkoutService (stores startedAt as
+    //    epoch-millis, not Timestamp), then filter to the current window. ──
     final history = await _workoutService.getHistory(limit: 120);
     final workouts = history
         .where((w) =>
             !w.startedAt.isBefore(windowStart) && w.startedAt.isBefore(windowEnd))
         .toList();
 
-    // â”€â”€ Map exerciseId â†’ muscle-group label from the exercise library
-    //    (muscleGroup isn't stored on the workout doc). â”€â”€
+    // ── Map exerciseId → muscle-group label from the exercise library
+    //    (muscleGroup isn't stored on the workout doc). ──
     final muscleById = await _muscleLookup();
 
     return _aggregate(
@@ -93,7 +93,7 @@ class AnalyticsService {
     );
   }
 
-  /// Builds an exerciseId â†’ muscle-group-label lookup from presets + custom
+  /// Builds an exerciseId → muscle-group-label lookup from presets + custom
   /// exercises. Falls back to an empty map if the library can't be read.
   Future<Map<String, String>> _muscleLookup() async {
     try {
@@ -104,7 +104,7 @@ class AnalyticsService {
     }
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ aggregation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ───────────────────────── aggregation ─────────────────────────
 
   AnalyticsSummary _aggregate({
     required AnalyticsRange range,
@@ -129,7 +129,7 @@ class AnalyticsService {
         .where((d) => !d.date.isBefore(prev.start) && d.date.isBefore(prev.end))
         .toList();
 
-    // â”€â”€ Nutrition series (mean of logged days per bucket; gap if none) â”€â”€
+    // ── Nutrition series (mean of logged days per bucket; gap if none) ──
     final caloriesSeries = <TrendPoint>[];
     final proteinSeries = <TrendPoint>[];
     final macroStackSeries = <MacroStackPoint>[];
@@ -176,7 +176,7 @@ class AnalyticsService {
       }
     }
 
-    // â”€â”€ Nutrition headline stats â”€â”€
+    // ── Nutrition headline stats ──
     final avgKcalCur = _mean(currentDays.map((d) => d.kcal.toDouble()));
     final avgKcalPrev = _mean(prevDays.map((d) => d.kcal.toDouble()));
     final avgProtCur = _mean(currentDays.map((d) => d.proteinG.toDouble()));
@@ -193,7 +193,7 @@ class AnalyticsService {
 
     final loggingStreak = _loggingStreak(byDay, now);
 
-    // â”€â”€ Activity series (steps + water; only where persisted) â”€â”€
+    // ── Activity series (steps + water; only where persisted) ──
     final stepsSeries = <TrendPoint>[];
     final waterSeries = <TrendPoint>[];
     for (final b in buckets) {
@@ -226,7 +226,7 @@ class AnalyticsService {
     final avgWaterPrev =
         _mean(prevDays.where((d) => d.water != null).map((d) => d.water!));
 
-    // â”€â”€ Workout aggregation (computed in-memory from Workout history) â”€â”€
+    // ── Workout aggregation (computed in-memory from Workout history) ──
     final volumeSeries = <TrendPoint>[];
     for (final b in buckets) {
       final inBucket = workouts
@@ -293,7 +293,7 @@ class AnalyticsService {
           .toList();
     });
 
-    // PR feed â€” best e1RM per exercise this period, dated to when it landed.
+    // PR feed — best e1RM per exercise this period, dated to when it landed.
     final prs = <PrRecord>[];
     prBest.forEach((id, best) {
       prs.add(PrRecord(
@@ -306,7 +306,7 @@ class AnalyticsService {
     });
     prs.sort((a, b) => b.date.compareTo(a.date));
 
-    // â”€â”€ Heatmaps â”€â”€
+    // ── Heatmaps ──
     final nutritionHeat = _buildHeat(
       windowStart: windowStart,
       windowEnd: windowEnd,
@@ -368,7 +368,7 @@ class AnalyticsService {
     );
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ───────────────────────── helpers ─────────────────────────
 
   List<HeatCell> _buildHeat({
     required DateTime windowStart,
@@ -441,23 +441,23 @@ class AnalyticsService {
     return int.tryParse(v.toString()) ?? 0;
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ takeaways â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ───────────────────────── takeaways ─────────────────────────
 
   String _nutritionTakeaway(
       int onTarget, int logged, double avgProtein, int targetProtein) {
     if (logged < 2) return 'Log a few days to unlock your trends.';
     if (targetProtein > 0 && avgProtein < targetProtein * 0.85) {
-      return 'Protein is running below target â€” aim a little higher.';
+      return 'Protein is running below target — aim a little higher.';
     }
     if (onTarget >= logged * 0.7) {
-      return 'Great consistency â€” most days landed on your calorie target.';
+      return 'Great consistency — most days landed on your calorie target.';
     }
     return 'You hit your calorie target on $onTarget of $logged logged days.';
   }
 
   String _workoutTakeaway(int sessions, int prs) {
     if (sessions == 0) return 'Log a few workouts to unlock your trends.';
-    final prPart = prs > 0 ? ' Â· $prs PR${prs == 1 ? '' : 's'}' : '';
+    final prPart = prs > 0 ? ' · $prs PR${prs == 1 ? '' : 's'}' : '';
     return '$sessions session${sessions == 1 ? '' : 's'} this period$prPart.';
   }
 
@@ -466,11 +466,11 @@ class AnalyticsService {
     if (targetProtein > 0 && avgProtein >= targetProtein * 0.9) {
       return 'Solid training volume backed by on-point protein intake.';
     }
-    return 'Training is on â€” nudge protein up to match the effort.';
+    return 'Training is on — nudge protein up to match the effort.';
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ internal row models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ───────────────────────── internal row models ─────────────────────────
 
 class _DayLog {
   final String dayKey;
@@ -493,8 +493,8 @@ class _DayLog {
     required this.water,
   });
 
-  /// A day counts as logged only if it has real calories â€” 0-kcal artefacts
-  /// from failed scans are treated as not-logged gaps (Â§10).
+  /// A day counts as logged only if it has real calories — 0-kcal artefacts
+  /// from failed scans are treated as not-logged gaps (§10).
   bool get logged => kcal > 0;
 
   static _DayLog? fromMap(String id, Map<String, dynamic> m) {
