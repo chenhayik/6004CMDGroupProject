@@ -105,6 +105,26 @@ class NotificationService {
     );
   }
 
+  /// Schedule a ONE-OFF notification at an absolute [when] (used by the meal
+  /// planner — each day's meal is baked in so it fires offline, no repeat).
+  Future<void> scheduleOneShotAt({
+    required int id,
+    required DateTime when,
+    required String title,
+    required String body,
+  }) async {
+    await init();
+    await _plugin.zonedSchedule(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: tz.TZDateTime.from(when, tz.local),
+      notificationDetails: _details(_remindersChannel, 'Reminders'),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      // No matchDateTimeComponents → fires once with this day's meal.
+    );
+  }
+
   tz.TZDateTime _nextInstanceOf(int hour, int minute) {
     final now = tz.TZDateTime.now(tz.local);
     var scheduled =

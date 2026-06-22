@@ -6,6 +6,7 @@ import '../meal_scan/meal_scan_view.dart';
 import '../workout/workout_home_view.dart';
 import '../analytics/analytics_screen.dart';
 import '../profile/profile_hub_view.dart';
+import '../meal_plan/meal_plan_view.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -435,10 +436,13 @@ class _HomeContent extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.radar,
-        'label': 'Radar',
+        'icon': Icons.restaurant_menu,
+        'label': 'Plan',
         'active': false,
-        'onTap': null,
+        'onTap': () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MealPlanView()),
+            ),
       },
       {
         'icon': Icons.insights_rounded,

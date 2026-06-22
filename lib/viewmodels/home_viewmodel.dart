@@ -10,11 +10,16 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/daily_log_service.dart';
 import '../services/notification_manager.dart';
+import '../services/meal_cache.dart';
+import '../services/meal_history_service.dart';
+import '../services/meal_planner.dart';
 
 class HomeViewModel extends ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
   final DailyLogService  _dailyLogService  = DailyLogService();
   final NotificationManager _notifications = NotificationManager();
+  final MealCache _mealCache = MealCache();
+  final MealHistoryService _mealHistory = MealHistoryService();
 
   // ── Profile / Targets ──
   UserProfile? userProfile;
@@ -94,6 +99,8 @@ class HomeViewModel extends ChangeNotifier {
     _initPedometer();
     _scheduleMidnightReset();
     _notifications.init(); // request permission + lay down daily reminders
+    // Re-arm offline meal notifications from cache (reboots drop one-shots).
+    MealPlanner().rescheduleFromCacheIfNeeded();
   }
 
   /// Fire a sample notification so the user can confirm they're enabled.
@@ -125,6 +132,29 @@ class HomeViewModel extends ChangeNotifier {
 
     // Start listening to daily log AFTER profile is loaded
     _subscribeDailyLog();
+
+    // Mirror the meal-planner inputs locally so the background isolate can
+    // generate the weekly plan without Firestore/auth.
+    _saveMealPlanMirror();
+  }
+
+  // ─── Mirror targets + recent meals for the offline meal planner ──
+  Future<void> _saveMealPlanMirror() async {
+    if (targetCalories <= 0) return;
+    try {
+      final meals = await _mealHistory.getMealHistory();
+      final names = meals.map((m) => m.foodName).take(15).toList();
+      await _mealCache.saveInputsMirror(
+        kcal: targetCalories,
+        protein: proteinTarget,
+        carbs: carbsTarget,
+        fat: fatTarget,
+        goal: userProfile?.goal ?? 'maintain',
+        recentMeals: names,
+      );
+    } catch (e) {
+      debugPrint('Meal-plan mirror save error: $e');
+    }
   }
 
   // ─── Real-time Firestore stream for consumed macros ──────
