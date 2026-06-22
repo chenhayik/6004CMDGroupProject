@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../models/user_profile.dart';
+import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../widget_tree.dart';
 
@@ -94,7 +95,7 @@ class ProfileHubView extends StatelessWidget {
                 height: 50,
                 child: OutlinedButton.icon(
                   onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
+                    await AuthService().signOut(); // Firebase + Google
                     if (context.mounted) {
                       Navigator.pushAndRemoveUntil(
                         context,

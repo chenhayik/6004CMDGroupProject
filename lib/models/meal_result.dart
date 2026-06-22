@@ -20,13 +20,15 @@ class MealResult {
   });
 
   // ── From Gemini JSON response ──
+  // The model output is untrusted: clamp macros to sane ranges and sanitize
+  // the name so absurd or malicious values never reach the UI / Firestore.
   factory MealResult.fromJson(Map<String, dynamic> json) {
     return MealResult(
-      foodName: json['food_name']?.toString() ?? 'Unknown Food',
-      calories: _parseInt(json['calories']),
-      proteinG: _parseInt(json['protein_g']),
-      carbsG:   _parseInt(json['carbs_g']),
-      fatG:     _parseInt(json['fat_g']),
+      foodName: _sanitizeName(json['food_name']),
+      calories: _parseInt(json['calories']).clamp(0, 10000),
+      proteinG: _parseInt(json['protein_g']).clamp(0, 1000),
+      carbsG:   _parseInt(json['carbs_g']).clamp(0, 1000),
+      fatG:     _parseInt(json['fat_g']).clamp(0, 1000),
     );
   }
 
@@ -62,5 +64,18 @@ class MealResult {
     if (value is int) return value;
     if (value is double) return value.round();
     return int.tryParse(value.toString()) ?? 0;
+  }
+
+  // ── Sanitize a food name from an untrusted source ──
+  // Strips control characters, collapses whitespace, and caps the length so a
+  // hostile or malformed response can't inject odd characters or huge strings.
+  static String _sanitizeName(dynamic value) {
+    final raw = value?.toString() ?? '';
+    final cleaned = raw
+        .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '') // control chars
+        .replaceAll(RegExp(r'\s+'), ' ')            // collapse whitespace
+        .trim();
+    if (cleaned.isEmpty) return 'Unknown Food';
+    return cleaned.length > 100 ? cleaned.substring(0, 100) : cleaned;
   }
 }

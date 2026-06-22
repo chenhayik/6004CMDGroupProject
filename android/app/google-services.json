@@ -12,7 +12,20 @@
           "package_name": "inti.edu.mobile_application_group"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "565903466138-raanaepddnt13f25eko7qe6ppkh8t6o1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "inti.edu.mobile_application_group",
+            "certificate_hash": "37e65c487d6c8072b28544a0722c4a813b28a606"
+          }
+        },
+        {
+          "client_id": "565903466138-3fbfgfcj9ocbmh3204a23kkeg0r6bvnk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAzghuMrmjypi4l7ZwS_iST1QVyu7ljDq8"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "565903466138-3fbfgfcj9ocbmh3204a23kkeg0r6bvnk.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "565903466138-mb2hemmtblo3qjj3ksvd3bb2bp9iii7e.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "inti.edu.mobileApplicationGroup"
+              }
+            }
+          ]
         }
       }
     }

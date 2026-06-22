@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../viewmodels/home_viewmodel.dart';
 import '../meal_scan/meal_scan_view.dart';
+import '../workout/workout_home_view.dart';
 import '../analytics/analytics_screen.dart';
 import '../profile/profile_hub_view.dart';
 
@@ -428,7 +429,10 @@ class _HomeContent extends StatelessWidget {
         'icon': Icons.fitness_center,
         'label': 'Gym',
         'active': false,
-        'onTap': null,
+        'onTap': () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const WorkoutHomeView()),
+            ),
       },
       {
         'icon': Icons.radar,
@@ -637,7 +641,11 @@ class _HomeContent extends StatelessWidget {
                 _buildActionButton(
                   label: '↗ Log Workout',
                   onTap: () {
-                    // TODO: Navigator.push to WorkoutLogView
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const WorkoutHomeView()),
+                    );
                   },
                 ),
               ],

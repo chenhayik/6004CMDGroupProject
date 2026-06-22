@@ -1,0 +1,88 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──
+    function signedInAs(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isIntInRange(v, lo, hi) {
+      return v is int && v >= lo && v <= hi;
+    }
+
+    // Validates a meal document written by the client. Mirrors the clamping
+    // done in MealResult so a direct API call can't store garbage values.
+    function isValidMeal(d) {
+      return d.food_name is string
+          && d.food_name.size() > 0
+          && d.food_name.size() <= 100
+          && isIntInRange(d.calories, 0, 10000)
+          && isIntInRange(d.protein_g, 0, 1000)
+          && isIntInRange(d.carbs_g, 0, 1000)
+          && isIntInRange(d.fat_g, 0, 1000);
+    }
+
+    function isValidDailyLog(d) {
+      return isIntInRange(d.consumed_calories, 0, 1000000)
+          && isIntInRange(d.consumed_protein_g, 0, 1000000)
+          && isIntInRange(d.consumed_carbs_g, 0, 1000000)
+          && isIntInRange(d.consumed_fat_g, 0, 1000000);
+    }
+
+    // A user may only touch their OWN document tree, and only while signed in.
+    // request.auth is null for unauthenticated callers, so all access is denied
+    // before login — regardless of what the client UI allows.
+    match /users/{userId} {
+
+      // The profile document itself.
+      allow read, write: if signedInAs(userId);
+
+      // ── Meal history: validate the data on create ──
+      match /meal_history/{mealId} {
+        allow read, delete: if signedInAs(userId);
+        allow create, update: if signedInAs(userId)
+                              && isValidMeal(request.resource.data);
+      }
+
+      // ── Daily running totals (written via increment/merge) ──
+      match /daily_logs/{dateId} {
+        allow read: if signedInAs(userId);
+        allow write: if signedInAs(userId)
+                     && isValidDailyLog(request.resource.data);
+      }
+
+      // ── Gym: workout sessions ──
+      match /workouts/{workoutId} {
+        allow read, write: if signedInAs(userId)
+                           && (request.method == 'delete'
+                               || request.resource.data.name is string);
+      }
+
+      // ── Gym: user-created custom exercises ──
+      match /custom_exercises/{exerciseId} {
+        allow read, delete: if signedInAs(userId);
+        allow create, update: if signedInAs(userId)
+                              && request.resource.data.name is string
+                              && request.resource.data.name.size() <= 60
+                              && request.resource.data.isCustom == true;
+      }
+
+      // ── Gym: reusable routines/templates ──
+      match /routines/{routineId} {
+        allow read, write: if signedInAs(userId);
+      }
+
+      // No other subcollections are expected — deny anything unlisted.
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    // Everything outside /users is denied by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

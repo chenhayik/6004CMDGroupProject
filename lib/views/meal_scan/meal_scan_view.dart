@@ -22,6 +22,7 @@ class _MealScanContent extends StatelessWidget {
 
   static const _green = Color(0xFF22C55E);
   static const _blue  = Color(0xFF378ADD);
+  static const _bg    = Color(0xFFF8FAFC);
 
   void _handleStateChange(BuildContext context, MealScanViewModel vm) {
     if (vm.scanState == MealScanState.success &&
@@ -42,80 +43,217 @@ class _MealScanContent extends StatelessWidget {
     }
   }
 
-  Widget _buildActionButtons(BuildContext context, MealScanViewModel vm) {
-    final bool isProcessing = vm.scanState == MealScanState.analysing ||
-        vm.scanState == MealScanState.picking;
+  bool _isProcessing(MealScanViewModel vm) =>
+      vm.scanState == MealScanState.analysing ||
+      vm.scanState == MealScanState.picking;
 
-    return Column(
-      children: [
-        Row(
+  // ─── Hero: Snap & Track (AI) ─────────────────────────────────
+  Widget _buildSnapCard(BuildContext context, MealScanViewModel vm) {
+    final processing = _isProcessing(vm);
+    return GestureDetector(
+      onTap: processing ? null : () => _showSourcePicker(context, vm),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF22C55E), Color(0xFF15803D)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: _green.withOpacity(0.3),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
           children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.25),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.camera_alt, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Snap & Track (AI)',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Auto-log your food instantly',
+                    style: TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Log Manually card ───────────────────────────────────────
+  Widget _buildManualCard(BuildContext context, MealScanViewModel vm) {
+    final processing = _isProcessing(vm);
+    return GestureDetector(
+      onTap: processing
+          ? null
+          : () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChangeNotifierProvider.value(
+                    value: vm,
+                    child: const MealEditView(),
+                  ),
+                ),
+              ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.edit_outlined,
+                  color: Colors.black54, size: 19),
+            ),
+            const SizedBox(width: 12),
             Expanded(
-              child: _PrimaryActionButton(
-                icon:    Icons.camera_alt,
-                label:   'Take Photo',
-                color:   _green,
-                enabled: !isProcessing,
-                onTap:   () async {
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Log Manually',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'ACCURATE',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Enter your food and macros yourself',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.black26, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Source picker (camera / gallery) ────────────────────────
+  void _showSourcePicker(BuildContext context, MealScanViewModel vm) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Snap & Track',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFDCFCE7),
+                  child: Icon(Icons.camera_alt, color: _green),
+                ),
+                title: const Text('Take Photo'),
+                subtitle: const Text('Use your camera'),
+                onTap: () async {
+                  Navigator.pop(sheetContext);
                   await vm.pickFromCamera(context);
                   if (context.mounted) _handleStateChange(context, vm);
                 },
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _PrimaryActionButton(
-                icon:    Icons.photo_library_outlined,
-                label:   'Upload Photo',
-                color:   _blue,
-                enabled: !isProcessing,
-                onTap:   () async {
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFEFF6FF),
+                  child: Icon(Icons.photo_library_outlined, color: _blue),
+                ),
+                title: const Text('Choose from Gallery'),
+                subtitle: const Text('Pick an existing photo'),
+                onTap: () async {
+                  Navigator.pop(sheetContext);
                   await vm.pickFromGallery(context);
                   if (context.mounted) _handleStateChange(context, vm);
                 },
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        GestureDetector(
-          onTap: isProcessing
-              ? null
-              : () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ChangeNotifierProvider.value(
-                value: vm,
-                child: const MealEditView(),
-              ),
-            ),
+              const SizedBox(height: 12),
+            ],
           ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.edit_outlined, size: 18, color: Colors.black54),
-                SizedBox(width: 8),
-                Text(
-                  'Add Meal Manually',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -221,9 +359,9 @@ class _MealScanContent extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Meal History',
+              'Recent Meals',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 17,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
@@ -233,6 +371,24 @@ class _MealScanContent extends StatelessWidget {
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              TextButton(
+                onPressed: vm.loadHistory,
+                style: TextButton.styleFrom(
+                  foregroundColor: _green,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'REFRESH',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
           ],
         ),
@@ -258,14 +414,25 @@ class _MealScanContent extends StatelessWidget {
 
               // ── Meals in this group ──
               ...entry.value.map(
-                    (meal) => Padding(
+                (meal) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _MealHistoryCard(
                     meal: meal,
-                    onDelete: meal.id != null
-                        ? () => vm.deleteMeal(meal.id!)
-                        : null,
                     onTap: () => _showMealOptions(context, vm, meal),
+                    onQuickLog: () async {
+                      final ok = await vm.reLogMeal(meal);
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            ok
+                                ? '${meal.foodName} logged again!'
+                                : 'Failed to log meal',
+                          ),
+                          backgroundColor: ok ? _green : Colors.red,
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -449,29 +616,47 @@ class _MealScanContent extends StatelessWidget {
   }
 
   Widget _buildEmptyHistory() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          Icon(Icons.restaurant_outlined, size: 40, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          const Text(
-            'No meals logged yet',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black54),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recent Meals',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Take a photo to get started',
-            style: TextStyle(fontSize: 12, color: Colors.black38),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
           ),
-        ],
-      ),
+          child: Column(
+            children: [
+              Icon(Icons.restaurant_outlined,
+                  size: 40, color: Colors.grey.shade300),
+              const SizedBox(height: 12),
+              const Text(
+                'No meals logged yet',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black54),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Snap a photo to get started',
+                style: TextStyle(fontSize: 12, color: Colors.black38),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -480,20 +665,11 @@ class _MealScanContent extends StatelessWidget {
     final vm = context.watch<MealScanViewModel>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: _bg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: _bg,
         elevation: 0,
-        title: const Text(
-          'SNAP & TRACK',
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
-        ),
-        centerTitle: true,
+        foregroundColor: Colors.black87,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.black87),
@@ -502,54 +678,35 @@ class _MealScanContent extends StatelessWidget {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'AI Meal Scanner',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Snap your food and get instant macro breakdown powered by Gemini AI',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Icon(Icons.document_scanner_outlined, color: Colors.white, size: 40),
-                ],
+            // ── Header ──
+            const Text(
+              'Log Your Meal',
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
               ),
             ),
-            const SizedBox(height: 16),
-            _buildActionButtons(context, vm),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
+            const Text(
+              'Choose how you want to track your nutrition today.',
+              style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+
+            // ── Snap & Track (AI) hero ──
+            _buildSnapCard(context, vm),
+            const SizedBox(height: 14),
+
+            // ── Log Manually ──
+            _buildManualCard(context, vm),
+            const SizedBox(height: 14),
+
+            // ── Loading / Error feedback ──
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
@@ -557,15 +714,18 @@ class _MealScanContent extends StatelessWidget {
                 children: [
                   if (vm.scanState == MealScanState.analysing) ...[
                     _buildLoadingCard(),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                   ],
-                  if (vm.scanState == MealScanState.error && vm.errorMessage != null) ...[
+                  if (vm.scanState == MealScanState.error &&
+                      vm.errorMessage != null) ...[
                     _buildErrorCard(vm.errorMessage!, vm.reset),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                   ],
                 ],
               ),
             ),
+
+            // ── Recent Meals (history) ──
             _buildHistorySection(context, vm),
             const SizedBox(height: 16),
           ],
@@ -575,72 +735,16 @@ class _MealScanContent extends StatelessWidget {
   }
 }
 
-// ─── Primary Button ─────────────────────────────────────────
-class _PrimaryActionButton extends StatelessWidget {
-  final IconData icon;
-  final String   label;
-  final Color    color;
-  final bool     enabled;
-  final VoidCallback onTap;
-
-  const _PrimaryActionButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 200),
-        opacity: enabled ? 1.0 : 0.5,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(enabled ? 0.3 : 0.0),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: Colors.white, size: 28),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ─── History Card ────────────────────────────────────────────
 class _MealHistoryCard extends StatelessWidget {
   final MealResult    meal;
-  final VoidCallback? onDelete;
   final VoidCallback  onTap;
+  final VoidCallback  onQuickLog;
 
   const _MealHistoryCard({
     required this.meal,
     required this.onTap,
-    this.onDelete,
+    required this.onQuickLog,
   });
 
   @override
@@ -661,58 +765,72 @@ class _MealHistoryCard extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 color: const Color(0xFFDCFCE7),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.restaurant, color: Color(0xFF22C55E), size: 22),
+              child: const Icon(Icons.restaurant,
+                  color: Color(0xFF22C55E), size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          meal.foodName,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        timeLabel,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.black38,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    meal.foodName,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  // Calories + time — mirrors the "320 kcal • Breakfast" line
+                  Text(
+                    '${meal.calories} kcal · $timeLabel',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                   const SizedBox(height: 6),
+                  // Full macro breakdown retained from history
                   Wrap(
                     spacing: 4,
                     runSpacing: 4,
                     children: [
-                      _MacroPill(label: '${meal.calories} kcal', color: const Color(0xFF22C55E)),
-                      _MacroPill(label: 'P ${meal.proteinG}g',   color: const Color(0xFF378ADD)),
-                      _MacroPill(label: 'C ${meal.carbsG}g',     color: const Color(0xFFEF9F27)),
-                      _MacroPill(label: 'F ${meal.fatG}g',       color: const Color(0xFFD4537E)),
+                      _MacroPill(
+                          label: 'P ${meal.proteinG}g',
+                          color: const Color(0xFF378ADD)),
+                      _MacroPill(
+                          label: 'C ${meal.carbsG}g',
+                          color: const Color(0xFFEF9F27)),
+                      _MacroPill(
+                          label: 'F ${meal.fatG}g',
+                          color: const Color(0xFFD4537E)),
                     ],
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, size: 18, color: Colors.black26),
+            // Quick "+" re-log button (from the mockup)
+            GestureDetector(
+              onTap: onQuickLog,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF22C55E), width: 1.2),
+                ),
+                child: const Icon(Icons.add,
+                    color: Color(0xFF22C55E), size: 20),
+              ),
+            ),
           ],
         ),
       ),

@@ -1,14 +1,18 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import '../models/analytics_range.dart';
 import '../models/analytics_summary.dart';
 import '../models/trend_point.dart';
+import '../models/workout.dart';
+import '../models/exercise.dart';
+import 'workout_service.dart';
+import 'exercise_library_service.dart';
 
-/// The ONLY class permitted to read Firestore for Analytics (§2 layering).
+/// The ONLY class permitted to read Firestore for Analytics (Â§2 layering).
 ///
 /// It performs date-bounded, `.limit()`-ed reads, buckets the rows per the
-/// active range, applies the data-hygiene rules (§10), and returns an
+/// active range, applies the data-hygiene rules (Â§10), and returns an
 /// immutable [AnalyticsSummary]. No UI, no Provider.
 ///
 /// NOTE on schema: the live app stores `daily_logs` with FLAT fields
@@ -22,16 +26,12 @@ class AnalyticsService {
       : _db = db ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _db;
+  final WorkoutService _workoutService = WorkoutService();
+  final ExerciseLibraryService _exerciseLibrary = ExerciseLibraryService();
   static final DateFormat _dayKey = DateFormat('yyyy-MM-dd');
 
   CollectionReference<Map<String, dynamic>> _logs(String uid) =>
       _db.collection('users').doc(uid).collection('daily_logs');
-
-  CollectionReference<Map<String, dynamic>> _workouts(String uid) =>
-      _db.collection('users').doc(uid).collection('workouts');
-
-  CollectionReference<Map<String, dynamic>> _exerciseStats(String uid) =>
-      _db.collection('users').doc(uid).collection('exercise_stats');
 
   Future<AnalyticsSummary> buildSummary({
     required String uid,
@@ -43,7 +43,7 @@ class AnalyticsService {
     final windowEnd = range.windowEnd(now);
     final prev = range.previousWindow(now);
 
-    // ── Targets from the user profile doc ──
+    // â”€â”€ Targets from the user profile doc â”€â”€
     final profileSnap = await _db.collection('users').doc(uid).get();
     final profile = profileSnap.data() ?? const {};
     final targets =
@@ -51,8 +51,8 @@ class AnalyticsService {
     final targetKcal = _asInt(targets['targetCalories']);
     final targetProteinG = _asInt(targets['proteinG']);
 
-    // ── Daily logs spanning BOTH the current and previous window in one read
-    //    (so we can compute period-over-period deltas cheaply). ──
+    // â”€â”€ Daily logs spanning BOTH the current and previous window in one read
+    //    (so we can compute period-over-period deltas cheaply). â”€â”€
     final logsSnap = await _logs(uid)
         .where('date',
             isGreaterThanOrEqualTo: _dayKey.format(prev.start))
@@ -66,11 +66,17 @@ class AnalyticsService {
       if (log != null && log.logged) byDay[log.dayKey] = log;
     }
 
-    // ── Workouts in the current window (defensive: collection may not exist) ──
-    final workouts = await _readWorkouts(uid, windowStart, windowEnd);
+    // â”€â”€ Workouts: read via the existing WorkoutService (stores startedAt as
+    //    epoch-millis, not Timestamp), then filter to the current window. â”€â”€
+    final history = await _workoutService.getHistory(limit: 120);
+    final workouts = history
+        .where((w) =>
+            !w.startedAt.isBefore(windowStart) && w.startedAt.isBefore(windowEnd))
+        .toList();
 
-    // ── Exercise stats for 1RM lines + PR feed ──
-    final exerciseStats = await _readExerciseStats(uid);
+    // â”€â”€ Map exerciseId â†’ muscle-group label from the exercise library
+    //    (muscleGroup isn't stored on the workout doc). â”€â”€
+    final muscleById = await _muscleLookup();
 
     return _aggregate(
       range: range,
@@ -82,12 +88,23 @@ class AnalyticsService {
       targetKcal: targetKcal,
       targetProteinG: targetProteinG,
       workouts: workouts,
-      exerciseStats: exerciseStats,
+      muscleById: muscleById,
       weightUnit: weightUnit,
     );
   }
 
-  // ───────────────────────── aggregation ─────────────────────────
+  /// Builds an exerciseId â†’ muscle-group-label lookup from presets + custom
+  /// exercises. Falls back to an empty map if the library can't be read.
+  Future<Map<String, String>> _muscleLookup() async {
+    try {
+      final library = await _exerciseLibrary.getAll();
+      return {for (final e in library) e.id: e.muscleGroup.label};
+    } catch (_) {
+      return {for (final e in kPresetExercises) e.id: e.muscleGroup.label};
+    }
+  }
+
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ aggregation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   AnalyticsSummary _aggregate({
     required AnalyticsRange range,
@@ -98,8 +115,8 @@ class AnalyticsService {
     required Map<String, _DayLog> byDay,
     required int targetKcal,
     required int targetProteinG,
-    required List<_Workout> workouts,
-    required List<_ExerciseStat> exerciseStats,
+    required List<Workout> workouts,
+    required Map<String, String> muscleById,
     required String weightUnit,
   }) {
     final buckets = range.buckets(now);
@@ -112,7 +129,7 @@ class AnalyticsService {
         .where((d) => !d.date.isBefore(prev.start) && d.date.isBefore(prev.end))
         .toList();
 
-    // ── Nutrition series (mean of logged days per bucket; gap if none) ──
+    // â”€â”€ Nutrition series (mean of logged days per bucket; gap if none) â”€â”€
     final caloriesSeries = <TrendPoint>[];
     final proteinSeries = <TrendPoint>[];
     final macroStackSeries = <MacroStackPoint>[];
@@ -159,7 +176,7 @@ class AnalyticsService {
       }
     }
 
-    // ── Nutrition headline stats ──
+    // â”€â”€ Nutrition headline stats â”€â”€
     final avgKcalCur = _mean(currentDays.map((d) => d.kcal.toDouble()));
     final avgKcalPrev = _mean(prevDays.map((d) => d.kcal.toDouble()));
     final avgProtCur = _mean(currentDays.map((d) => d.proteinG.toDouble()));
@@ -176,7 +193,7 @@ class AnalyticsService {
 
     final loggingStreak = _loggingStreak(byDay, now);
 
-    // ── Activity series (steps + water; only where persisted) ──
+    // â”€â”€ Activity series (steps + water; only where persisted) â”€â”€
     final stepsSeries = <TrendPoint>[];
     final waterSeries = <TrendPoint>[];
     for (final b in buckets) {
@@ -209,7 +226,7 @@ class AnalyticsService {
     final avgWaterPrev =
         _mean(prevDays.where((d) => d.water != null).map((d) => d.water!));
 
-    // ── Workout aggregation ──
+    // â”€â”€ Workout aggregation (computed in-memory from Workout history) â”€â”€
     final volumeSeries = <TrendPoint>[];
     for (final b in buckets) {
       final inBucket = workouts
@@ -225,45 +242,71 @@ class AnalyticsService {
     }
     final totalVolume =
         workouts.fold<double>(0, (s, w) => s + w.totalVolumeKg);
-    final totalSets = workouts.fold<int>(0, (s, w) => s + w.setCount);
     final workoutDays = workouts.map((w) => _midnight(w.startedAt)).toSet();
     final workoutStreak = _dayStreak(workoutDays, now);
 
+    // Single pass over every working set: sets count, muscle volume,
+    // per-exercise daily best e1RM (series) and overall best (PR).
+    var totalSets = 0;
     final muscleVolume = <String, double>{};
-    for (final w in workouts) {
-      w.muscleVolume.forEach((muscle, vol) {
-        muscleVolume[muscle] = (muscleVolume[muscle] ?? 0) + vol;
-      });
-    }
-
-    // e1RM series + PR feed from exercise_stats.
-    final e1rmByExercise = <String, List<TrendPoint>>{};
     final exerciseNames = <String, String>{};
-    final prs = <PrRecord>[];
-    for (final stat in exerciseStats) {
-      exerciseNames[stat.id] = stat.name;
-      final points = stat.e1rmSeries
-          .where((p) => !p.date.isBefore(windowStart) && p.date.isBefore(windowEnd))
-          .map((p) => TrendPoint(
-                label: DateFormat('d MMM').format(p.date),
-                date: p.date,
-                value: p.e1rm,
-              ))
-          .toList();
-      if (points.isNotEmpty) e1rmByExercise[stat.id] = points;
-      if (stat.bestE1rm > 0) {
-        prs.add(PrRecord(
-          exerciseName: stat.name,
-          date: stat.bestDate ?? windowEnd,
-          metric: 'Best e1RM',
-          value: stat.bestE1rm,
-          unit: weightUnit,
-        ));
+    final e1rmDayBest = <String, Map<DateTime, double>>{};
+    final prBest = <String, ({double value, DateTime date})>{};
+
+    for (final w in workouts) {
+      final day = _midnight(w.startedAt);
+      for (final ex in w.exercises) {
+        exerciseNames[ex.exerciseId] = ex.name;
+        final muscle = muscleById[ex.exerciseId] ?? 'Other';
+        double bestE1rmThisDay = 0;
+        for (final s in ex.sets) {
+          if (s.type == SetType.warmup) continue;
+          totalSets++;
+          muscleVolume[muscle] = (muscleVolume[muscle] ?? 0) + s.volume();
+          final e1rm = s.estimated1RM();
+          if (e1rm != null && e1rm > bestE1rmThisDay) bestE1rmThisDay = e1rm;
+        }
+        if (bestE1rmThisDay > 0) {
+          final dayMap = e1rmDayBest.putIfAbsent(ex.exerciseId, () => {});
+          if (bestE1rmThisDay > (dayMap[day] ?? 0)) {
+            dayMap[day] = bestE1rmThisDay;
+          }
+          final pr = prBest[ex.exerciseId];
+          if (pr == null || bestE1rmThisDay > pr.value) {
+            prBest[ex.exerciseId] = (value: bestE1rmThisDay, date: day);
+          }
+        }
       }
     }
+
+    // Build sorted e1RM series per exercise.
+    final e1rmByExercise = <String, List<TrendPoint>>{};
+    e1rmDayBest.forEach((id, dayMap) {
+      final points = dayMap.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key));
+      e1rmByExercise[id] = points
+          .map((e) => TrendPoint(
+                label: DateFormat('d MMM').format(e.key),
+                date: e.key,
+                value: e.value,
+              ))
+          .toList();
+    });
+
+    // PR feed â€” best e1RM per exercise this period, dated to when it landed.
+    final prs = <PrRecord>[];
+    prBest.forEach((id, best) {
+      prs.add(PrRecord(
+        exerciseName: exerciseNames[id] ?? id,
+        date: best.date,
+        metric: 'Best e1RM',
+        value: best.value,
+        unit: weightUnit,
+      ));
+    });
     prs.sort((a, b) => b.date.compareTo(a.date));
 
-    // ── Heatmaps ──
+    // â”€â”€ Heatmaps â”€â”€
     final nutritionHeat = _buildHeat(
       windowStart: windowStart,
       windowEnd: windowEnd,
@@ -325,40 +368,7 @@ class AnalyticsService {
     );
   }
 
-  // ───────────────────────── workout reads ─────────────────────────
-
-  Future<List<_Workout>> _readWorkouts(
-      String uid, DateTime start, DateTime end) async {
-    try {
-      final snap = await _workouts(uid)
-          .where('startedAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-          .where('startedAt', isLessThan: Timestamp.fromDate(end))
-          .limit(200)
-          .get();
-      return snap.docs
-          .map((d) => _Workout.fromMap(d.data()))
-          .whereType<_Workout>()
-          .toList();
-    } catch (_) {
-      // Collection absent / not yet indexed — treat as no workouts.
-      return const [];
-    }
-  }
-
-  Future<List<_ExerciseStat>> _readExerciseStats(String uid) async {
-    try {
-      final snap = await _exerciseStats(uid).limit(50).get();
-      return snap.docs
-          .map((d) => _ExerciseStat.fromMap(d.id, d.data()))
-          .whereType<_ExerciseStat>()
-          .toList();
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  // ───────────────────────── helpers ─────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   List<HeatCell> _buildHeat({
     required DateTime windowStart,
@@ -431,23 +441,23 @@ class AnalyticsService {
     return int.tryParse(v.toString()) ?? 0;
   }
 
-  // ───────────────────────── takeaways ─────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ takeaways â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   String _nutritionTakeaway(
       int onTarget, int logged, double avgProtein, int targetProtein) {
     if (logged < 2) return 'Log a few days to unlock your trends.';
     if (targetProtein > 0 && avgProtein < targetProtein * 0.85) {
-      return 'Protein is running below target — aim a little higher.';
+      return 'Protein is running below target â€” aim a little higher.';
     }
     if (onTarget >= logged * 0.7) {
-      return 'Great consistency — most days landed on your calorie target.';
+      return 'Great consistency â€” most days landed on your calorie target.';
     }
     return 'You hit your calorie target on $onTarget of $logged logged days.';
   }
 
   String _workoutTakeaway(int sessions, int prs) {
     if (sessions == 0) return 'Log a few workouts to unlock your trends.';
-    final prPart = prs > 0 ? ' · $prs PR${prs == 1 ? '' : 's'}' : '';
+    final prPart = prs > 0 ? ' Â· $prs PR${prs == 1 ? '' : 's'}' : '';
     return '$sessions session${sessions == 1 ? '' : 's'} this period$prPart.';
   }
 
@@ -456,11 +466,11 @@ class AnalyticsService {
     if (targetProtein > 0 && avgProtein >= targetProtein * 0.9) {
       return 'Solid training volume backed by on-point protein intake.';
     }
-    return 'Training is on — nudge protein up to match the effort.';
+    return 'Training is on â€” nudge protein up to match the effort.';
   }
 }
 
-// ───────────────────────── internal row models ─────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ internal row models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _DayLog {
   final String dayKey;
@@ -483,8 +493,8 @@ class _DayLog {
     required this.water,
   });
 
-  /// A day counts as logged only if it has real calories — 0-kcal artefacts
-  /// from failed scans are treated as not-logged gaps (§10).
+  /// A day counts as logged only if it has real calories â€” 0-kcal artefacts
+  /// from failed scans are treated as not-logged gaps (Â§10).
   bool get logged => kcal > 0;
 
   static _DayLog? fromMap(String id, Map<String, dynamic> m) {
@@ -509,97 +519,6 @@ class _DayLog {
       fatG: n('consumed_fat_g', 'fatG'),
       steps: steps == null ? null : AnalyticsService._asInt(steps),
       water: water == null ? null : (water as num).toDouble(),
-    );
-  }
-}
-
-class _Workout {
-  final DateTime startedAt;
-  final double totalVolumeKg;
-  final int setCount;
-  final Map<String, double> muscleVolume;
-
-  _Workout({
-    required this.startedAt,
-    required this.totalVolumeKg,
-    required this.setCount,
-    required this.muscleVolume,
-  });
-
-  static _Workout? fromMap(Map<String, dynamic> m) {
-    final started = m['startedAt'];
-    DateTime? startedAt;
-    if (started is Timestamp) startedAt = started.toDate();
-    if (started is String) startedAt = DateTime.tryParse(started);
-    if (startedAt == null) return null;
-
-    final exercises = (m['exercises'] as List?) ?? const [];
-    var setCount = 0;
-    final muscleVolume = <String, double>{};
-    for (final e in exercises) {
-      if (e is! Map) continue;
-      final muscle = (e['muscleGroup'] as String?) ?? 'Other';
-      final sets = (e['sets'] as List?) ?? const [];
-      for (final s in sets) {
-        if (s is! Map) continue;
-        if (s['completed'] == false) continue;
-        setCount++;
-        final w = (s['weightKg'] as num?)?.toDouble() ?? 0;
-        final r = (s['reps'] as num?)?.toDouble() ?? 0;
-        muscleVolume[muscle] = (muscleVolume[muscle] ?? 0) + w * r;
-      }
-    }
-
-    return _Workout(
-      startedAt: startedAt,
-      totalVolumeKg: (m['totalVolumeKg'] as num?)?.toDouble() ??
-          muscleVolume.values.fold<double>(0, (s, v) => s + v),
-      setCount: setCount,
-      muscleVolume: muscleVolume,
-    );
-  }
-}
-
-class _E1rmPoint {
-  final DateTime date;
-  final double e1rm;
-  _E1rmPoint(this.date, this.e1rm);
-}
-
-class _ExerciseStat {
-  final String id;
-  final String name;
-  final double bestE1rm;
-  final DateTime? bestDate;
-  final List<_E1rmPoint> e1rmSeries;
-
-  _ExerciseStat({
-    required this.id,
-    required this.name,
-    required this.bestE1rm,
-    required this.bestDate,
-    required this.e1rmSeries,
-  });
-
-  static _ExerciseStat? fromMap(String id, Map<String, dynamic> m) {
-    final bests = (m['bests'] as Map<String, dynamic>?) ?? const {};
-    final rawSeries = (m['e1rmSeries'] as List?) ?? const [];
-    final series = <_E1rmPoint>[];
-    for (final p in rawSeries) {
-      if (p is! Map) continue;
-      final d = DateTime.tryParse((p['date'] ?? '').toString());
-      final v = (p['e1rm'] as num?)?.toDouble();
-      if (d != null && v != null) {
-        series.add(_E1rmPoint(DateTime(d.year, d.month, d.day), v));
-      }
-    }
-    series.sort((a, b) => a.date.compareTo(b.date));
-    return _ExerciseStat(
-      id: id,
-      name: (m['name'] as String?) ?? id,
-      bestE1rm: (bests['bestE1rm'] as num?)?.toDouble() ?? 0,
-      bestDate: series.isNotEmpty ? series.last.date : null,
-      e1rmSeries: series,
     );
   }
 }
