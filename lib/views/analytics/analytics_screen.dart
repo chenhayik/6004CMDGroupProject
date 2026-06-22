@@ -39,7 +39,6 @@ class _AnalyticsContentState extends State<_AnalyticsContent>
     with SingleTickerProviderStateMixin {
   static const _prefsKey = 'analytics_last_tab';
   late final TabController _tab;
-  final Set<int> _visited = {};
 
   @override
   void initState() {
@@ -57,17 +56,12 @@ class _AnalyticsContentState extends State<_AnalyticsContent>
       initial = prefs.getInt(_prefsKey) ?? 0;
     }
     if (!mounted) return;
-    setState(() {
-      _tab.index = initial.clamp(0, 2);
-      _visited.add(_tab.index);
-    });
+    setState(() => _tab.index = initial.clamp(0, 2));
   }
 
   void _onTabChanged() {
     if (!_tab.indexIsChanging) {
-      if (!_visited.contains(_tab.index)) {
-        setState(() => _visited.add(_tab.index));
-      }
+      // Remember the last-selected tab between visits (§4.2).
       SharedPreferences.getInstance()
           .then((p) => p.setInt(_prefsKey, _tab.index));
     }
@@ -169,15 +163,13 @@ class _AnalyticsContentState extends State<_AnalyticsContent>
               Expanded(
                 child: TabBarView(
                   controller: _tab,
+                  // TabBarView builds each page lazily on first reveal; the
+                  // keep-alive wrapper then preserves it so switching tabs
+                  // doesn't blank or rebuild the others.
                   children: [
-                    OverviewTab(onJumpToTab: _jumpToTab),
-                    // Lazy-build: only construct a tab's charts once revealed.
-                    _visited.contains(1)
-                        ? const NutritionTab()
-                        : const SizedBox.shrink(),
-                    _visited.contains(2)
-                        ? const WorkoutTab()
-                        : const SizedBox.shrink(),
+                    _KeepAlive(child: OverviewTab(onJumpToTab: _jumpToTab)),
+                    const _KeepAlive(child: NutritionTab()),
+                    const _KeepAlive(child: WorkoutTab()),
                   ],
                 ),
               ),
@@ -209,5 +201,27 @@ class _ErrorState extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Keeps a TabBarView page alive once it has been built, so switching tabs
+/// preserves each page instead of disposing/blanking it.
+class _KeepAlive extends StatefulWidget {
+  final Widget child;
+  const _KeepAlive({required this.child});
+
+  @override
+  State<_KeepAlive> createState() => _KeepAliveState();
+}
+
+class _KeepAliveState extends State<_KeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context); // required by AutomaticKeepAliveClientMixin
+    return widget.child;
   }
 }
