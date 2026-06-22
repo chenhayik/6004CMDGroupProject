@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../analytics_theme.dart';
+import '../chart_scale.dart';
 import '../../../models/trend_point.dart';
 
 /// Macro balance over time — P/C/F grams stacked per bucket via
@@ -20,7 +21,8 @@ class MacroStackedBarChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final totals = points.where((p) => p.logged).map((p) => p.total);
     final maxTotal = totals.isEmpty ? 0.0 : totals.reduce((a, b) => a > b ? a : b);
-    final top = maxTotal <= 0 ? 10.0 : maxTotal * 1.2;
+    final axis = niceAxis(maxTotal);
+    final top = axis.max;
     final labelEvery = points.length <= 8 ? 1 : (points.length / 6).ceil();
 
     return Column(
@@ -37,6 +39,7 @@ class MacroStackedBarChart extends StatelessWidget {
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
+                horizontalInterval: axis.interval,
                 getDrawingHorizontalLine: (_) =>
                     FlLine(color: AnalyticsColors.border, strokeWidth: 1),
               ),
@@ -50,8 +53,9 @@ class MacroStackedBarChart extends StatelessWidget {
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 30,
+                    interval: axis.interval,
                     getTitlesWidget: (v, meta) {
-                      if (v == 0) return const SizedBox.shrink();
+                      if (v == 0 || v > top) return const SizedBox.shrink();
                       return Text('${v.toInt()}g',
                           style: const TextStyle(
                               fontSize: 9, color: AnalyticsColors.muted));

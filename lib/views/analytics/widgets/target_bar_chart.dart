@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../analytics_theme.dart';
+import '../chart_scale.dart';
 import '../../../models/trend_point.dart';
 
 /// Reusable bar chart with an optional dashed target line (§5.3 / §6).
@@ -28,18 +29,16 @@ class TargetBarChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final values = points.where((p) => p.hasValue).map((p) => p.value!).toList();
     final maxData = values.isEmpty ? 0.0 : values.reduce((a, b) => a > b ? a : b);
-    final maxY = [
+    final rawMax = [
       maxData,
       ?target,
     ].fold<double>(0, (a, b) => a > b ? a : b);
-    final top = maxY <= 0 ? 10.0 : maxY * 1.25;
+    // Clean, rounded y-axis so Week/Month/3-Month all read consistently.
+    final axis = niceAxis(rawMax);
+    final top = axis.max;
 
     // For dense day buckets, only label a handful of bars.
-    final labelEvery = points.length <= 8
-        ? 1
-        : points.length <= 16
-            ? 3
-            : 5;
+    final labelEvery = _labelEvery(points.length);
 
     return SizedBox(
       height: height,
@@ -52,7 +51,7 @@ class TargetBarChart extends StatelessWidget {
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
-            horizontalInterval: top / 3,
+            horizontalInterval: axis.interval,
             getDrawingHorizontalLine: (_) => FlLine(
               color: AnalyticsColors.border,
               strokeWidth: 1,
@@ -68,9 +67,9 @@ class TargetBarChart extends StatelessWidget {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 34,
-                interval: top / 3,
+                interval: axis.interval,
                 getTitlesWidget: (v, meta) {
-                  if (v == 0) return const SizedBox.shrink();
+                  if (v == 0 || v > top) return const SizedBox.shrink();
                   return Text(
                     _compact(v),
                     style: const TextStyle(
@@ -139,6 +138,13 @@ class TargetBarChart extends StatelessWidget {
   Color _colorFor(double v) {
     if (target != null && overColor != null && v > target!) return overColor!;
     return barColor;
+  }
+
+  // Show ~6-7 evenly spaced x labels regardless of point count, so 30 daily
+  // bars (Month) don't crowd the axis.
+  static int _labelEvery(int n) {
+    if (n <= 8) return 1;
+    return (n / 6).ceil();
   }
 
   static String _compact(double v) {

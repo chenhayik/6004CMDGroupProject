@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../analytics_theme.dart';
+import '../chart_scale.dart';
 import '../../../models/trend_point.dart';
 
 /// Reusable line chart (e.g. estimated 1RM). Requires ≥2 points to draw a
@@ -32,9 +33,11 @@ class TrendLineChart extends StatelessWidget {
     }
 
     final ys = spots.map((s) => s.y);
-    final maxY = ys.isEmpty ? 10.0 : ys.reduce((a, b) => a > b ? a : b);
-    final minY = ys.isEmpty ? 0.0 : ys.reduce((a, b) => a < b ? a : b);
-    final pad = (maxY - minY).abs() < 1 ? 5.0 : (maxY - minY) * 0.2;
+    final rawMax = ys.isEmpty ? 10.0 : ys.reduce((a, b) => a > b ? a : b);
+    final rawMin = ys.isEmpty ? 0.0 : ys.reduce((a, b) => a < b ? a : b);
+    // Clean rounded min/max/interval so the y labels don't overlap or read as
+    // arbitrary values (worse on Month/3-Month where 1RM spreads are larger).
+    final axis = niceRange(rawMin, rawMax);
 
     final labelEvery = points.length <= 8 ? 1 : (points.length / 6).ceil();
 
@@ -42,12 +45,13 @@ class TrendLineChart extends StatelessWidget {
       height: height,
       child: LineChart(
         LineChartData(
-          minY: (minY - pad).clamp(0, double.infinity),
-          maxY: maxY + pad,
+          minY: axis.min,
+          maxY: axis.max,
           lineTouchData: const LineTouchData(enabled: false),
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
+            horizontalInterval: axis.interval,
             getDrawingHorizontalLine: (_) =>
                 FlLine(color: AnalyticsColors.border, strokeWidth: 1),
           ),
@@ -61,6 +65,7 @@ class TrendLineChart extends StatelessWidget {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 34,
+                interval: axis.interval,
                 getTitlesWidget: (v, meta) {
                   if (v == meta.min) return const SizedBox.shrink();
                   return Text(
