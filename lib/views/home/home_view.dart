@@ -620,18 +620,8 @@ class _HomeContent extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none, color: Colors.black54),
-            tooltip: 'Send a test notification',
-            onPressed: () async {
-              await vm.sendTestNotification();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Test notification sent — check your shade.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
+            // Placeholder — the working test action lives in the Profile screen.
+            onPressed: () {},
           ),
         ],
       ),

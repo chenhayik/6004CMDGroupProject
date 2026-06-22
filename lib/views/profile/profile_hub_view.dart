@@ -8,6 +8,7 @@ import '../../models/trend_point.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/weight_service.dart';
+import '../../services/notification_manager.dart';
 import '../../widget_tree.dart';
 import '../onboarding/select_goal_view.dart';
 import '../analytics/widgets/trend_line_chart.dart';
@@ -29,6 +30,7 @@ class _ProfileHubViewState extends State<ProfileHubView> {
 
   final FirestoreService _firestore = FirestoreService();
   final WeightService _weightService = WeightService();
+  final NotificationManager _notifications = NotificationManager();
 
   UserProfile? _profile;
   List<WeightEntry> _weights = const [];
@@ -129,6 +131,17 @@ class _ProfileHubViewState extends State<ProfileHubView> {
     _load(); // refresh current weight + trend
   }
 
+  Future<void> _sendTestNotification() async {
+    await _notifications.sendTest();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Test notification sent — check your shade.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -183,9 +196,11 @@ class _ProfileHubViewState extends State<ProfileHubView> {
                     const SizedBox(height: 16),
                   ],
                   _weightCard(profile),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 16),
                 ],
 
+                _testNotificationButton(),
+                const SizedBox(height: 12),
                 _signOutButton(),
               ],
             ),
@@ -292,6 +307,24 @@ class _ProfileHubViewState extends State<ProfileHubView> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _testNotificationButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: OutlinedButton.icon(
+        onPressed: _sendTestNotification,
+        icon: const Icon(Icons.notifications_active_outlined, color: _green),
+        label: const Text('Send test notification',
+            style: TextStyle(color: _green, fontWeight: FontWeight.w600)),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: _green),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
     );
   }
 
