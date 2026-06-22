@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../viewmodels/home_viewmodel.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../widget_tree.dart';
 import '../meal_scan/meal_scan_view.dart';
+import '../analytics/analytics_screen.dart';
+import '../profile/profile_hub_view.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -22,8 +22,6 @@ class _HomeContent extends StatelessWidget {
   const _HomeContent();
 
   static const _green        = Color(0xFF22C55E);
-  static const _proteinColor = Color(0xFF378ADD);
-  static const _carbColor    = Color(0xFFEF9F27);
   static const _fatColor     = Color(0xFFEF9F27);
   static const _bgColor      = Color(0xFFF8FAFC);
   static const _cardColor    = Colors.white;
@@ -313,9 +311,13 @@ class _HomeContent extends StatelessWidget {
     required String label,
     required Color color,
     required double progress,
+    VoidCallback? onTap,
   }) {
     return Expanded(
-      child: Container(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
           color: _cardColor,
@@ -369,6 +371,7 @@ class _HomeContent extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -403,13 +406,42 @@ class _HomeContent extends StatelessWidget {
   }
 
   // ─── Bottom Nav ───────────────────────────────────────────
-  Widget _buildBottomNav() {
-    final items = [
-      {'icon': Icons.home_rounded,        'label': 'Home',      'active': true},
-      {'icon': Icons.restaurant_outlined, 'label': 'Nutrition', 'active': false},
-      {'icon': Icons.fitness_center,      'label': 'Gym',       'active': false},
-      {'icon': Icons.radar,               'label': 'Radar',     'active': false},
-      {'icon': Icons.person_outline,      'label': 'Profile',   'active': false},
+  // Profile moved to the top-left avatar hub; its slot is now Analytics (§1).
+  Widget _buildBottomNav(BuildContext context) {
+    final items = <Map<String, dynamic>>[
+      {
+        'icon': Icons.home_rounded,
+        'label': 'Home',
+        'active': true,
+        'onTap': null,
+      },
+      {
+        'icon': Icons.restaurant_outlined,
+        'label': 'Nutrition',
+        'active': false,
+        'onTap': () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MealScanView()),
+            ),
+      },
+      {
+        'icon': Icons.fitness_center,
+        'label': 'Gym',
+        'active': false,
+        'onTap': null,
+      },
+      {
+        'icon': Icons.radar,
+        'label': 'Radar',
+        'active': false,
+        'onTap': null,
+      },
+      {
+        'icon': Icons.insights_rounded,
+        'label': 'Analytics',
+        'active': false,
+        'onTap': () => _openAnalytics(context),
+      },
     ];
 
     return Container(
@@ -421,27 +453,43 @@ class _HomeContent extends StatelessWidget {
       child: Row(
         children: items.map((item) {
           final active = item['active'] as bool;
+          final onTap = item['onTap'] as VoidCallback?;
           return Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  item['icon'] as IconData,
-                  size: 22,
-                  color: active ? _green : Colors.black38,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item['label'] as String,
-                  style: TextStyle(
-                    fontSize: 10,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    item['icon'] as IconData,
+                    size: 22,
                     color: active ? _green : Colors.black38,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    item['label'] as String,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: active ? _green : Colors.black38,
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  // Entry point into Analytics. A null [initialTab] restores the remembered
+  // tab (plain nav button); a non-null value is a deep-link target (§4.2).
+  void _openAnalytics(BuildContext context, {int? initialTab}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AnalyticsScreen(initialTab: initialTab),
       ),
     );
   }
@@ -463,18 +511,12 @@ class _HomeContent extends StatelessWidget {
         backgroundColor: _bgColor,
         elevation: 0,
         leading: GestureDetector(
-          onTap: () async {
-            // 1. Sign out of Firebase
-            await FirebaseAuth.instance.signOut();
-
-            // 2. Route back to the WidgetTree to handle the logged-out state
-            if (context.mounted) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const WidgetTree()),
-                    (route) => false,
-              );
-            }
+          onTap: () {
+            // Profile hub now lives behind the avatar (§1). Sign-out is inside.
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfileHubView()),
+            );
           },
           child: Padding(
             padding: const EdgeInsets.all(10.0),
@@ -500,7 +542,7 @@ class _HomeContent extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: _buildBottomNav(context),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: Column(
@@ -512,28 +554,39 @@ class _HomeContent extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(flex: 5, child: _buildCalorieRing(vm)),
+                Expanded(
+                  flex: 5,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openAnalytics(context, initialTab: 1),
+                    child: _buildCalorieRing(vm),
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 4,
-                  child: Column(
-                    children: [
-                      _buildMacroSideCard(
-                        label: 'Protein',
-                        consumed: vm.consumedProtein,
-                        target: vm.proteinTarget,
-                        progress: vm.proteinProgress,
-                        color: const Color(0xFF378ADD),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildMacroSideCard(
-                        label: 'Carbs',
-                        consumed: vm.consumedCarbs,
-                        target: vm.carbsTarget,
-                        progress: vm.carbsProgress,
-                        color: const Color(0xFFEF9F27),
-                      ),
-                    ],
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openAnalytics(context, initialTab: 1),
+                    child: Column(
+                      children: [
+                        _buildMacroSideCard(
+                          label: 'Protein',
+                          consumed: vm.consumedProtein,
+                          target: vm.proteinTarget,
+                          progress: vm.proteinProgress,
+                          color: const Color(0xFF378ADD),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildMacroSideCard(
+                          label: 'Carbs',
+                          consumed: vm.consumedCarbs,
+                          target: vm.carbsTarget,
+                          progress: vm.carbsProgress,
+                          color: const Color(0xFFEF9F27),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -554,6 +607,7 @@ class _HomeContent extends StatelessWidget {
                   label: 'STEPS',
                   color: _green,
                   progress: (vm.steps / 10000).clamp(0.0, 1.0),
+                  onTap: () => _openAnalytics(context, initialTab: 0),
                 ),
                 const SizedBox(width: 10),
                 _buildActivityCard(

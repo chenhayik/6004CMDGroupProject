@@ -33,6 +33,23 @@ class DailyLogService {
     );
   }
 
+  // ── Persist today's activity (steps / water) so Analytics can build a
+  //    historical trend. Merged into the same daily_logs doc. ──
+  Future<void> updateActivity(
+    String uid, {
+    int? stepsNet,
+    double? waterLiters,
+  }) async {
+    final data = <String, dynamic>{
+      'date': _todayKey,
+      'updated_at': FieldValue.serverTimestamp(),
+    };
+    if (stepsNet != null) data['steps_net'] = stepsNet;
+    if (waterLiters != null) data['water_liters'] = waterLiters;
+
+    await _todayRef(uid).set(data, SetOptions(merge: true));
+  }
+
   // ── Real-time stream of today's consumed totals ──
   Stream<DailyTotals> todayStream(String uid) {
     return _todayRef(uid).snapshots().map((doc) {

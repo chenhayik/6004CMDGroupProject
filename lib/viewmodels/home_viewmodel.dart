@@ -30,6 +30,10 @@ class HomeViewModel extends ChangeNotifier {
   int steps        = 0;
   int _stepBaseline = -1;
   String stepStatus = 'walking';
+
+  // Throttle persistence of steps to Firestore (daily_logs).
+  DateTime _lastStepPersist = DateTime.fromMillisecondsSinceEpoch(0);
+  int _lastPersistedSteps = 0;
   StreamSubscription<StepCount>?         _stepSubscription;
   StreamSubscription<PedestrianStatus>?  _statusSubscription;
 
@@ -193,6 +197,7 @@ class HomeViewModel extends ChangeNotifier {
 
         steps = (event.steps - _stepBaseline).clamp(0, 999999);
         notifyListeners();
+        _persistStepsThrottled();
       },
       onError: (e) => debugPrint('Step count error: $e'),
     );
@@ -204,6 +209,25 @@ class HomeViewModel extends ChangeNotifier {
       },
       onError: (e) => debugPrint('Pedestrian status error: $e'),
     );
+  }
+
+  // ─── Persist steps to today's daily_log (throttled) ──────
+  // Writes at most every 60s and only when the count moved meaningfully, so
+  // Analytics can read a per-day `steps_net` without hammering Firestore.
+  void _persistStepsThrottled() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final now = DateTime.now();
+    final movedEnough = (steps - _lastPersistedSteps).abs() >= 50;
+    final dueByTime = now.difference(_lastStepPersist).inSeconds >= 60;
+    if (!movedEnough && !dueByTime) return;
+
+    _lastStepPersist = now;
+    _lastPersistedSteps = steps;
+    _dailyLogService.updateActivity(uid, stepsNet: steps).catchError(
+          (e) => debugPrint('Persist steps error: $e'),
+        );
   }
 
   // ─── Computed getters ────────────────────────────────────
