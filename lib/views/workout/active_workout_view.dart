@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/exercise.dart';
 import '../../models/workout.dart';
 import '../../viewmodels/active_workout_viewmodel.dart';
@@ -402,6 +403,22 @@ class _ExerciseCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 12),
+            // ── Watch how-to video on YouTube ──
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFFEE2E2),
+                child: Icon(Icons.ondemand_video, color: Color(0xFFEF4444)),
+              ),
+              title: const Text('Watch how-to',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Opens a form guide on YouTube',
+                  style: TextStyle(fontSize: 12)),
+              onTap: () {
+                Navigator.pop(sheet);
+                _openHowTo(context);
+              },
+            ),
+            const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
               title: const Text('Remove exercise',
@@ -416,6 +433,34 @@ class _ExerciseCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // Prefer an explicit videoUrl on the matching preset; otherwise fall back to
+  // a YouTube search for proper form (works for custom exercises too).
+  String _howToUrl() {
+    final matches = kPresetExercises.where((e) => e.id == ex.exerciseId);
+    if (matches.isNotEmpty) return matches.first.howToSearchUrl;
+    final q = Uri.encodeComponent('${ex.name} proper form');
+    return 'https://www.youtube.com/results?search_query=$q';
+  }
+
+  Future<void> _openHowTo(BuildContext context) async {
+    final uri = Uri.parse(_howToUrl());
+    try {
+      // externalApplication → opens the YouTube app if installed, else browser.
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the video.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the video.')),
+        );
+      }
+    }
   }
 }
 
