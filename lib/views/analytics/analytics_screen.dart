@@ -88,10 +88,17 @@ class _AnalyticsContentState extends State<_AnalyticsContent>
           children: [
             // Title
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+              padding: EdgeInsets.fromLTRB(
+                  Navigator.canPop(context) ? 4 : 18, 8, 18, 6),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  if (Navigator.canPop(context))
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back,
+                          color: AnalyticsColors.ink),
+                      onPressed: () => Navigator.maybePop(context),
+                      tooltip: 'Back',
+                    ),
                   const Text(
                     'Insights',
                     style: TextStyle(
@@ -100,6 +107,7 @@ class _AnalyticsContentState extends State<_AnalyticsContent>
                       color: AnalyticsColors.ink,
                     ),
                   ),
+                  const Spacer(),
                   Text(
                     vm.windowSubtitle,
                     style: const TextStyle(
