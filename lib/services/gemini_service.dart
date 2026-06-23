@@ -4,6 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../models/meal_result.dart';
 
+/// An error whose [message] is already safe to show to the user — no stack
+/// traces, API codes, or internal jargon. Anything thrown as this can be shown
+/// verbatim; anything else should be mapped to a friendly fallback first.
+class MealScanException implements Exception {
+  final String message;
+  const MealScanException(this.message);
+  @override
+  String toString() => message;
+}
+
 class GeminiService {
   // ── API key is supplied at build time, never hardcoded ──
   // Pass it via:  flutter run --dart-define=GEMINI_API_KEY=your_key
@@ -64,9 +74,9 @@ class GeminiService {
   // ── Main analysis method ──
   Future<MealResult> analyzeImage(Uint8List imageBytes) async {
     if (_apiKey.isEmpty) {
-      throw Exception(
-        'Gemini API key not set. Run with '
-        '--dart-define=GEMINI_API_KEY=your_key',
+      debugPrint('GEMINI_API_KEY not set — pass --dart-define-from-file=env.json');
+      throw const MealScanException(
+        'Photo analysis is unavailable right now. Please try again later.',
       );
     }
 
@@ -90,7 +100,8 @@ class GeminiService {
       final jsonText = response.text;
 
       if (jsonText == null || jsonText.isEmpty) {
-        throw Exception('Gemini returned an empty response.');
+        throw const MealScanException(
+            "We couldn't analyse this photo. Please try a clearer one.");
       }
 
       debugPrint('Gemini raw response: $jsonText');
@@ -99,14 +110,33 @@ class GeminiService {
       final Map<String, dynamic> parsed = jsonDecode(jsonText);
       return MealResult.fromJson(parsed);
 
+    } on MealScanException {
+      rethrow; // already a friendly, user-safe message
     } on GenerativeAIException catch (e) {
-      throw Exception('Gemini API error: ${e.message}');
+      debugPrint('Gemini API error: ${e.message}');
+      final m = e.message.toLowerCase();
+      if (m.contains('quota') ||
+          m.contains('exhausted') ||
+          m.contains('credit') ||
+          m.contains('billing') ||
+          m.contains('rate limit')) {
+        throw const MealScanException(
+            'Photo analysis is temporarily unavailable (usage limit '
+            'reached). Please try again later.');
+      }
+      throw const MealScanException(
+          "We couldn't analyse this photo. Please try again.");
     } on FormatException catch (e) {
-      throw Exception('Failed to parse Gemini response as JSON: $e');
+      debugPrint('Meal scan parse error: $e');
+      throw const MealScanException(
+          "We couldn't read the result. Please try another photo.");
     } on TimeoutException {
-      throw Exception('The request timed out. Check your connection and try again.');
+      throw const MealScanException(
+          'This is taking too long — check your connection and try again.');
     } catch (e) {
-      throw Exception('Unexpected error analysing image: $e');
+      debugPrint('Meal scan unexpected error: $e');
+      throw const MealScanException(
+          'Something went wrong analysing your photo. Please try again.');
     }
   }
 
@@ -115,10 +145,11 @@ class GeminiService {
   /// upload arbitrary or oversized payloads to the API.
   String _validateImage(Uint8List bytes) {
     if (bytes.isEmpty) {
-      throw Exception('No image data — please retake the photo.');
+      throw const MealScanException('No image data — please retake the photo.');
     }
     if (bytes.lengthInBytes > _maxImageBytes) {
-      throw Exception('Image is too large. Please use a smaller photo.');
+      throw const MealScanException(
+          'Image is too large. Please use a smaller photo.');
     }
 
     // Magic-byte sniffing — don't trust the file extension or picker.
@@ -137,6 +168,7 @@ class GeminiService {
       return 'image/png';
     }
 
-    throw Exception('Unsupported image format. Please use a JPEG or PNG photo.');
+    throw const MealScanException(
+        'Unsupported image format. Please use a JPEG or PNG photo.');
   }
 }

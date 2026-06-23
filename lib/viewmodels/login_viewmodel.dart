@@ -222,13 +222,12 @@ class LoginViewModel extends ChangeNotifier {
 
       case 'configuration-not-found':
       case 'api-key-not-valid':
-        return 'Auth is not configured for this app. '
-            'Enable Email/Password in the Firebase console.';
+        return 'Sign-in is temporarily unavailable. Please try again later.';
 
+      // The raw code is already logged above (debugPrint) for diagnostics;
+      // users only ever see a friendly, non-revealing message.
       default:
-      // Surface the raw code while diagnosing the sign-in failure.
-      // TODO: revert to a generic message once auth is confirmed working.
-        return 'Sign-in error: $code';
+        return 'Something went wrong. Please try again.';
     }
   }
 

@@ -82,8 +82,12 @@ class MealScanViewModel extends ChangeNotifier {
       lastResult = result;
       scanState  = MealScanState.success;
     } catch (e) {
-      errorMessage = e.toString().replaceFirst('Exception: ', '');
-      scanState    = MealScanState.error;
+      // Service errors are already user-safe (MealScanException); anything else
+      // gets a friendly fallback so no internal detail ever reaches the UI.
+      errorMessage = e is MealScanException
+          ? e.message
+          : "We couldn't analyse this photo. Please try again.";
+      scanState = MealScanState.error;
     }
     notifyListeners();
   }
@@ -99,8 +103,9 @@ class MealScanViewModel extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
+      debugPrint('Save meal failed: $e');
       isSaving     = false;
-      errorMessage = 'Failed to save: $e';
+      errorMessage = "Couldn't save your meal. Please try again.";
       notifyListeners();
       return false;
     }
@@ -137,7 +142,8 @@ class MealScanViewModel extends ChangeNotifier {
       await _historyService.deleteMeal(mealId);
       await loadHistory();
     } catch (e) {
-      errorMessage = 'Failed to delete meal';
+      debugPrint('Delete meal failed: $e');
+      errorMessage = "Couldn't delete the meal. Please try again.";
       notifyListeners();
     }
   }

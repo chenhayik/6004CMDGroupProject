@@ -66,10 +66,20 @@ class _MealPlanContent extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
     if (vm.isEmpty) {
-      return _EmptyState(
-        busy: vm.isRefreshing,
-        error: vm.error,
-        onGenerate: () => vm.refresh(),
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+            child: _CuisineBar(vm: vm),
+          ),
+          Expanded(
+            child: _EmptyState(
+              busy: vm.isRefreshing,
+              error: vm.error,
+              onGenerate: () => vm.refresh(),
+            ),
+          ),
+        ],
       );
     }
 
@@ -79,6 +89,13 @@ class _MealPlanContent extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
         children: [
+          _CuisineBar(vm: vm),
+          const SizedBox(height: 6),
+          const Text(
+            'Pick the cuisines you want more of, then tap ↻ to regenerate.',
+            style: TextStyle(fontSize: 11.5, color: Colors.black45),
+          ),
+          const SizedBox(height: 12),
           if (vm.error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -147,9 +164,23 @@ class _DayCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: Colors.black87)),
               ),
-              Text(
-                '${day.totalCalories} kcal · P${day.totalProtein} C${day.totalCarbs} F${day.totalFat}',
-                style: const TextStyle(fontSize: 11.5, color: Colors.black45),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${day.totalCalories} kcal · P${day.totalProtein} C${day.totalCarbs} F${day.totalFat}',
+                    style:
+                        const TextStyle(fontSize: 11.5, color: Colors.black45),
+                  ),
+                  if (day.totalPriceLabel.isNotEmpty)
+                    Text(
+                      '~${day.totalPriceLabel} / day',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: accent),
+                    ),
+                ],
               ),
             ],
           ),
@@ -207,11 +238,73 @@ class _DayCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text('${m.calories}\nkcal',
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                  fontSize: 11, color: Colors.black45, height: 1.2)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('${m.calories} kcal',
+                  style: const TextStyle(fontSize: 11, color: Colors.black45)),
+              if (m.priceLabel.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(m.priceLabel,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: color)),
+              ],
+            ],
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Horizontal multi-select chips for the cuisine preference. Toggling persists
+/// the choice (via the ViewModel) but doesn't regenerate until the user asks.
+class _CuisineBar extends StatelessWidget {
+  final MealPlanViewModel vm;
+  const _CuisineBar({required this.vm});
+
+  static const _green = Color(0xFF27A567);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          // "Mixed" = balanced spread; selected whenever no cuisine is picked.
+          _chip('Mixed', vm.cuisines.isEmpty, () => vm.setMixed()),
+          for (final c in MealPlanViewModel.cuisineOptions)
+            _chip(c, vm.cuisines.contains(c), () => vm.toggleCuisine(c)),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label, bool selected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: selected ? _green : Colors.white,
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(color: selected ? _green : Colors.grey.shade300),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: selected ? Colors.white : Colors.black54,
+            ),
+          ),
+        ),
       ),
     );
   }

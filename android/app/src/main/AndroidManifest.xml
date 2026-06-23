@@ -8,10 +8,21 @@
          re-scheduling daily reminders after a reboot. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Fitness Radar (§4.5): locate the user to centre the map and rank nearby
+         gyms. Coarse is enough for a "what's near me" radar; fine improves the
+         marker accuracy when granted. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
         android:label="mobile_application_group"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Google Maps SDK key. Injected from android/local.properties
+             (MAPS_API_KEY) via a manifestPlaceholder so the real key is never
+             committed. See app/build.gradle.kts. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

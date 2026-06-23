@@ -90,10 +90,10 @@ class UserProfile {
   factory UserProfile.fromMap(String uid, Map<String, dynamic> map) {
     return UserProfile(
       uid: uid,
-      age: map['age'] ?? 0,
+      age: (map['age'] as num?)?.toInt() ?? 0,
       biologicalSex: map['biologicalSex'] ?? '',
-      height: (map['height'] as num).toDouble(),
-      weight: (map['weight'] as num).toDouble(),
+      height: (map['height'] as num?)?.toDouble() ?? 0,
+      weight: (map['weight'] as num?)?.toDouble() ?? 0,
       activityLevel: map['activityLevel'] ?? '',
       goal: map['goal'] ?? '',
       nutritionTargets: map['nutritionTargets'] != null

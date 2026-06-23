@@ -7,6 +7,7 @@ import '../workout/workout_home_view.dart';
 import '../analytics/analytics_screen.dart';
 import '../profile/profile_hub_view.dart';
 import '../meal_plan/meal_plan_view.dart';
+import '../radar/fitness_radar_view.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
@@ -618,6 +619,14 @@ class _HomeContent extends StatelessWidget {
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Fitness Radar',
+            icon: const Icon(Icons.travel_explore, color: Colors.black54),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FitnessRadarView()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_none, color: Colors.black54),
             // Placeholder — the working test action lives in the Profile screen.

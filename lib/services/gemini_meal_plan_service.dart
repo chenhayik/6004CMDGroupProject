@@ -33,6 +33,7 @@ class GeminiMealPlanService {
     required int fat,
     required String goal,
     required List<String> recentMealNames,
+    List<String> cuisines = const [],
   }) async {
     if (_apiKey.isEmpty) {
       throw Exception('Gemini API key not set '
@@ -46,6 +47,7 @@ class GeminiMealPlanService {
       fat: fat,
       goal: goal,
       recentMealNames: recentMealNames,
+      cuisines: cuisines,
     );
 
     final res =
@@ -88,6 +90,9 @@ class GeminiMealPlanService {
         'carbs_g': Schema(SchemaType.integer),
         'fat_g': Schema(SchemaType.integer),
         'is_wildcard': Schema(SchemaType.boolean),
+        'price_myr': Schema(SchemaType.number,
+            description: 'estimated single-serving price in Malaysian Ringgit '
+                '(MYR) at a hawker / mamak / economy-rice stall'),
       },
       requiredProperties: [
         'slot',
@@ -97,6 +102,7 @@ class GeminiMealPlanService {
         'carbs_g',
         'fat_g',
         'is_wildcard',
+        'price_myr',
       ],
     );
 
@@ -121,28 +127,57 @@ class GeminiMealPlanService {
     required int fat,
     required String goal,
     required List<String> recentMealNames,
+    List<String> cuisines = const [],
   }) {
     final recent =
         recentMealNames.isEmpty ? 'none yet' : recentMealNames.join(', ');
+    final cuisineLine = cuisines.isEmpty
+        ? 'Use a varied mix across Malay, Chinese, Indian, Thai and Western '
+            'dishes over the week.'
+        : 'Use ONLY ${cuisines.join(' and ')} food — EVERY single meal must be '
+            '${cuisines.join(' or ')}. Do NOT include dishes from any other '
+            'cuisine. Keep good variety within '
+            '${cuisines.length > 1 ? 'these cuisines' : 'this cuisine'} across '
+            'the 7 days.';
     return '''
 You are a Malaysian dietitian and weekly meal planner. Produce a 7-day plan with
-breakfast, lunch, and dinner using everyday Malaysian foods — kopitiam, hawker
-centre, mamak, and home-cooked dishes (e.g. nasi lemak, chicken rice, roti canai,
-char kuey teow, laksa, economy rice / nasi campur, soto, yong tau foo, ABC).
+breakfast, lunch, and dinner using everyday, affordable food Malaysians actually
+eat across all communities: Malay (nasi lemak, nasi campur, soto), Chinese
+(chicken rice, char kuey teow, wantan mee, economy rice), Indian (banana-leaf
+rice, roti canai with dhal, thosai, mee goreng), Thai (tom yam, green curry,
+basil chicken rice), and Western / Hainanese kopitiam fare (chicken chop, lamb
+chop, fish & chips, spaghetti).
+
+CUISINE PREFERENCE: $cuisineLine
 
 HARD RULES:
 1. Each DAY's three meals must SUM to roughly the user's daily targets:
    $kcal kcal, ${protein}g protein, ${carbs}g carbs, ${fat}g fat.
    Keep each day within ±8% on calories and within ±10% on protein.
-2. Give realistic single-serving portions and honest per-meal macro estimates
+2. STAPLE-BASED: build every meal around a carbohydrate staple. Local meals are
+   usually rice-based (white rice / nasi, nasi lemak, nasi goreng, economy rice)
+   or noodles / bread / roti; Western dishes come with fries, wedges, mashed
+   potato or bread. NEVER serve a protein or vegetable dish on its own — no plain
+   grilled fish, plain yong tau foo, or steamed chicken with only cucumber. Pair
+   it with a staple and name it that way, e.g. "Ikan Bakar with Nasi",
+   "Yong Tau Foo with Rice", "Chicken Chop with Fries & Coleslaw".
+3. ECONOMICAL: favour cheap, everyday dishes at typical hawker / mamak /
+   economy-rice prices. Breakfast and lunch especially must be budget-friendly
+   (e.g. nasi lemak, roti canai, economy rice with 1 meat + 1 veg, mee goreng,
+   chee cheong fun). Avoid premium, restaurant-style, or imported ingredients.
+   For every meal give "price_myr" — a realistic single-serving price in MYR
+   (e.g. roti canai RM 1.50–3, nasi lemak RM 3–6, mee goreng RM 5–7, economy
+   rice RM 6–9, chicken rice RM 7–10). Keep breakfast and lunch the cheapest
+   meals of the day.
+4. Give realistic single-serving portions and honest per-meal macro estimates
    (integers). The three meals' macros must add up to the day total.
-3. VARIETY: never repeat the same main dish across the 7 days, and avoid dishes
+5. VARIETY: never repeat the same main dish across the 7 days, and avoid dishes
    similar to the user's recent meals listed below.
-4. WILDCARD: exactly once in the week, mark one meal "is_wildcard": true — an
-   indulgent local treat (e.g. cendol, char kuey teow, durian) — and lighten the
-   other two meals that day so the day still hits target.
-5. Halal-friendly, widely available, no alcohol.
-6. Use day_offset 0..6 (0 = today), each day with exactly 3 meals
+6. WILDCARD: exactly once in the week, mark one meal "is_wildcard": true — an
+   indulgent local treat (e.g. cendol, ABC, durian, char kuey teow) — and lighten
+   the other two meals that day so the day still hits target.
+7. Halal-friendly, widely available, no alcohol.
+8. Use day_offset 0..6 (0 = today), each day with exactly 3 meals
    (slot = breakfast, lunch, dinner). Output ONLY JSON matching the schema.
 
 USER

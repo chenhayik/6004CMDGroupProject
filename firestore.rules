@@ -99,6 +99,27 @@ service cloud.firestore {
       }
     }
 
+    // ── Coach Directory (§4.5) ──
+    // Any signed-in user may browse coaches; a trainer may only create/edit/
+    // delete their OWN profile (doc id == their uid). Writes are validated so a
+    // direct API call can't store garbage.
+    match /coaches/{coachId} {
+      allow read: if request.auth != null;
+      allow delete: if signedInAs(coachId);
+      allow create, update: if signedInAs(coachId)
+          && request.resource.data.uid == coachId
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() > 0
+          && request.resource.data.displayName.size() <= 50
+          && request.resource.data.hourlyRateMyr is int
+          && request.resource.data.hourlyRateMyr >= 0
+          && request.resource.data.hourlyRateMyr <= 100000
+          && request.resource.data.specializations is list
+          && request.resource.data.contactValue is string
+          && request.resource.data.contactValue.size() <= 200
+          && request.resource.data.bio.size() <= 1000;
+    }
+
     // Everything outside /users is denied by default.
     match /{document=**} {
       allow read, write: if false;

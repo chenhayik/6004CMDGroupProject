@@ -299,7 +299,11 @@ class AnalyticsService {
         final muscle = muscleById[ex.exerciseId] ?? 'Other';
         double bestE1rmThisDay = 0;
         for (final s in ex.sets) {
-          if (s.type == SetType.warmup) continue;
+          // Completed working sets only — matches totalVolumeKg and the workout
+          // summary (countsForStats = not a warm-up AND ticked complete), so the
+          // Sets / muscle-volume / PR numbers can't be inflated by logged-but-
+          // unchecked sets.
+          if (!s.countsForStats) continue;
           totalSets++;
           muscleVolume[muscle] = (muscleVolume[muscle] ?? 0) + s.volume();
           final e1rm = s.estimated1RM();
@@ -569,7 +573,7 @@ class _DayLog {
       carbsG: n('consumed_carbs_g', 'carbsG'),
       fatG: n('consumed_fat_g', 'fatG'),
       steps: steps == null ? null : AnalyticsService._asInt(steps),
-      water: water == null ? null : (water as num).toDouble(),
+      water: water is num ? water.toDouble() : null,
     );
   }
 }

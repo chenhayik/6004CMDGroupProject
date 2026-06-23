@@ -41,14 +41,15 @@ class ImagePickerService {
 
   // ── Show source selection bottom sheet ──
   Future<Uint8List?> showPickerDialog(BuildContext context) async {
-    Uint8List? result;
-
-    await showModalBottomSheet(
+    // Resolve the user's choice FIRST, then pick after the sheet has closed.
+    // (Picking inside onTap after Navigator.pop races the sheet's future and
+    // returns null before the image is read.)
+    final source = await showModalBottomSheet<ImageSource>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => SafeArea(
+      builder: (sheetCtx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -74,10 +75,7 @@ class ImagePickerService {
               ),
               title: const Text('Take Photo'),
               subtitle: const Text('Use your camera'),
-              onTap: () async {
-                Navigator.pop(context);
-                result = await pickFromCamera();
-              },
+              onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
             ),
             ListTile(
               leading: const CircleAvatar(
@@ -86,10 +84,7 @@ class ImagePickerService {
               ),
               title: const Text('Choose from Gallery'),
               subtitle: const Text('Pick an existing photo'),
-              onTap: () async {
-                Navigator.pop(context);
-                result = await pickFromGallery();
-              },
+              onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
             ),
             const SizedBox(height: 16),
           ],
@@ -97,6 +92,9 @@ class ImagePickerService {
       ),
     );
 
-    return result;
+    if (source == null) return null; // dismissed
+    return source == ImageSource.camera
+        ? pickFromCamera()
+        : pickFromGallery();
   }
 }

@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../models/user_profile.dart';
-import '../services/firestore_service.dart';
 
 class SetupProfileViewModel extends ChangeNotifier {
-  final _firestoreService = FirestoreService();
-
   // ── Controllers ──
   final TextEditingController ageController = TextEditingController();
   final TextEditingController heightController = TextEditingController();
@@ -64,38 +59,6 @@ class SetupProfileViewModel extends ChangeNotifier {
 
   String? validateActivity(String? value) =>
       value == null ? 'Please select your activity level' : null;
-
-  // ── Save to Firestore ──
-  Future<bool> saveProfile(String goal) async {
-    isLoading = true;
-    errorMessage = null;
-    notifyListeners();
-
-    try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-
-      final profile = UserProfile(
-        uid: uid,
-        age: int.parse(ageController.text.trim()),
-        biologicalSex: selectedSex!,
-        height: double.parse(heightController.text.trim()),
-        weight: double.parse(weightController.text.trim()),
-        activityLevel: selectedActivityLevel!,
-        goal: goal,
-      );
-
-      await _firestoreService.createUserProfile(profile);
-      isLoading = false;
-      notifyListeners();
-      return true;
-
-    } catch (e) {
-      isLoading = false;
-      errorMessage = 'Failed to save profile. Please try again.';
-      notifyListeners();
-      return false;
-    }
-  }
 
   // ── Pass data to next screen ──
   Map<String, dynamic> collectFormData() => {

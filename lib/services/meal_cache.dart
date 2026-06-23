@@ -20,6 +20,7 @@ class MealCache {
   static const _kRecent = 'mealplan_recent';
   static const _kWeek = 'mealplan_week';
   static const _kPlannedAt = 'mealplan_planned_at';
+  static const _kCuisines = 'mealplan_cuisines';
 
   // ── Inputs mirror (written by the foreground app) ──
   Future<void> saveInputsMirror({
@@ -50,6 +51,16 @@ class MealCache {
 
   Future<List<String>> readRecentMeals() async {
     final s = await _prefs.getString(_kRecent);
+    return s == null ? const [] : List<String>.from(jsonDecode(s) as List);
+  }
+
+  // ── Cuisine preference (set by the user on the Meal Plan screen) ──
+  Future<void> saveCuisines(List<String> cuisines) async {
+    await _prefs.setString(_kCuisines, jsonEncode(cuisines));
+  }
+
+  Future<List<String>> readCuisines() async {
+    final s = await _prefs.getString(_kCuisines);
     return s == null ? const [] : List<String>.from(jsonDecode(s) as List);
   }
 

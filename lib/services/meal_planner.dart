@@ -48,6 +48,7 @@ class MealPlanner {
       return false;
     }
     final recent = await _cache.readRecentMeals();
+    final cuisines = await _cache.readCuisines();
 
     final days = await _gemini.generateWeek(
       kcal: _int(targets['kcal']),
@@ -56,6 +57,7 @@ class MealPlanner {
       fat: _int(targets['fat']),
       goal: (targets['goal'] ?? 'maintain').toString(),
       recentMealNames: recent,
+      cuisines: cuisines,
     );
 
     final now = DateTime.now();
