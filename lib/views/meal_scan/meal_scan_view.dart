@@ -64,7 +64,7 @@ class _MealScanContent extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: _green.withOpacity(0.3),
+              color: _green.withValues(alpha: 0.3),
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),
@@ -76,7 +76,7 @@ class _MealScanContent extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withValues(alpha: 0.25),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.camera_alt, color: Colors.white, size: 22),
@@ -335,9 +335,13 @@ class _MealScanContent extends StatelessWidget {
         );
         final diff = today.difference(date).inDays;
 
-        if (diff == 0)      label = 'Today';
-        else if (diff == 1) label = 'Yesterday';
-        else                label = DateFormat('EEEE, MMM d').format(date);
+        if (diff == 0) {
+          label = 'Today';
+        } else if (diff == 1) {
+          label = 'Yesterday';
+        } else {
+          label = DateFormat('EEEE, MMM d').format(date);
+        }
       }
 
       groups.putIfAbsent(label, () => []).add(meal);
@@ -849,7 +853,7 @@ class _MacroPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(

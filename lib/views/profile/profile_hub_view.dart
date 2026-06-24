@@ -492,7 +492,7 @@ class _ProfileHubViewState extends State<ProfileHubView> {
                   ),
                 ),
               ),
-              if (trailing != null) trailing,
+              ?trailing,
             ],
           ),
           const SizedBox(height: 8),

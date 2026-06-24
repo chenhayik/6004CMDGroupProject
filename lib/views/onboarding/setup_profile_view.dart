@@ -79,7 +79,7 @@ class _SetupProfileContent extends StatelessWidget {
     return _buildLabeledField(
       'BIOLOGICAL SEX',
       DropdownButtonFormField<String>(
-        value: vm.selectedSex,
+        initialValue: vm.selectedSex,
         icon: const Icon(Icons.keyboard_arrow_down),
         decoration: _sharedDecoration(hintText: 'Select...'),
         items: vm.sexOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
@@ -129,7 +129,7 @@ class _SetupProfileContent extends StatelessWidget {
     return _buildLabeledField(
       'ACTIVITY LEVEL',
       DropdownButtonFormField<String>(
-        value: vm.selectedActivityLevel,
+        initialValue: vm.selectedActivityLevel,
         icon: const Icon(Icons.keyboard_arrow_down),
         decoration: _sharedDecoration(hintText: 'Select...'),
         items: vm.activityOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),

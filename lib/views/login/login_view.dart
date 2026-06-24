@@ -270,7 +270,7 @@ class _LoginContent extends StatelessWidget {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: _kGreen.withOpacity(0.35),
+            color: _kGreen.withValues(alpha: 0.35),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),

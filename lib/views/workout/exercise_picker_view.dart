@@ -118,7 +118,7 @@ class _ExercisePickerViewState extends State<ExercisePickerView> {
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                         itemCount: _filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (_, i) => _tile(_filtered[i]),
                       ),
           ),
@@ -355,7 +355,7 @@ class _CreateCustomSheetState extends State<_CreateCustomSheet> {
   Widget _dropdown<T>(String label, T value, List<T> items,
       ValueChanged<T?> onChanged, String Function(T) labelOf) {
     return DropdownButtonFormField<T>(
-      value: value,
+      initialValue: value,
       decoration: InputDecoration(
           labelText: label, border: const OutlineInputBorder()),
       items: items

@@ -256,7 +256,7 @@ class _MacroCalculatorContent extends StatelessWidget {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   offset: const Offset(0, -4),
                   blurRadius: 8,
                 ),
@@ -363,7 +363,7 @@ class _SummaryCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     color: highlight
-                        ? const Color(0xFF22C55E).withOpacity(0.8)
+                        ? const Color(0xFF22C55E).withValues(alpha: 0.8)
                         : Colors.black54,
                   ),
                 ),

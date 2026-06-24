@@ -263,7 +263,7 @@ class _MealEditViewState extends State<MealEditView> {
                     color: const Color(0xFFF0FDF4),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: _green.withOpacity(0.4),
+                      color: _green.withValues(alpha: 0.4),
                     ),
                   ),
                   child: const Row(

@@ -134,7 +134,7 @@ class _WorkoutHomeViewState extends State<WorkoutHomeView> {
             // ── Resume banner (in-progress session restored) ──
             AnimatedBuilder(
               animation: _vm,
-              builder: (_, __) {
+              builder: (_, _) {
                 if (!_vm.hasActiveSession) return const SizedBox.shrink();
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 14),
@@ -233,7 +233,7 @@ class _StartCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-                color: _green.withOpacity(0.3),
+                color: _green.withValues(alpha: 0.3),
                 blurRadius: 14,
                 offset: const Offset(0, 6)),
           ],
@@ -244,7 +244,7 @@ class _StartCard extends StatelessWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.25),
+                  color: Colors.white.withValues(alpha: 0.25),
                   shape: BoxShape.circle),
               child: const Icon(Icons.add, color: Colors.white, size: 26),
             ),
@@ -364,7 +364,7 @@ class _RecommendationCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFBBF7D0)),
         boxShadow: [
           BoxShadow(
-            color: _green.withOpacity(0.06),
+            color: _green.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

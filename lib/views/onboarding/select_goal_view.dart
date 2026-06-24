@@ -86,7 +86,7 @@ class _SelectGoalViewState extends State<SelectGoalView> {
                   goal['subtitle'],
                   style: TextStyle(
                     fontSize: 13,
-                    color: isSelected ? const Color(0xFF22C55E).withOpacity(0.8) : Colors.black54,
+                    color: isSelected ? const Color(0xFF22C55E).withValues(alpha: 0.8) : Colors.black54,
                   ),
                 ),
               ],
@@ -196,7 +196,7 @@ class _SelectGoalViewState extends State<SelectGoalView> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   offset: const Offset(0, -4),
                   blurRadius: 8,
                 ),
