@@ -144,7 +144,7 @@ class _NotificationSettingsViewState extends State<NotificationSettingsView> {
   }) {
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      activeColor: _green,
+      activeThumbColor: _green,
       secondary: Icon(icon, color: _green),
       title: Text(title,
           style: const TextStyle(

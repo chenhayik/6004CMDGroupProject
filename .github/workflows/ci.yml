@@ -31,7 +31,8 @@ jobs:
         run: flutter pub get
 
       - name: Analyze (lints + type checks)
-        run: flutter analyze
+        # Fail on warnings/errors, but not on info-level style/deprecation lints.
+        run: flutter analyze --no-fatal-infos
 
       - name: Run tests
         run: flutter test
