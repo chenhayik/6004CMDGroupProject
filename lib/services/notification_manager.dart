@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'notification_prefs.dart';
 import 'notification_service.dart';
 
 /// Evaluates the contextual notification triggers from the user's logged data
@@ -13,8 +14,10 @@ import 'notification_service.dart';
 ///   • Low protein        — protein < 70% of target (scheduled 8 PM + evening)
 ///   • Goal achieved      — every macro within ±10% of target
 ///   • Skipped meal       — nothing logged by mid-afternoon
-///   • Hydration          — fixed daytime nudges (water isn't logged yet, so
-///                          these aren't data-driven until water logging exists)
+///   • Hydration          — fixed daytime reminders + data-driven nudge when
+///                          falling behind the daily water goal
+///   • Activity           — fixed daytime "get moving" reminders + data-driven
+///                          nudge/celebration around the daily step goal
 class NotificationManager {
   NotificationManager({NotificationService? service})
       : _service = service ?? NotificationService.instance;
@@ -31,6 +34,10 @@ class NotificationManager {
   static const _idHydration2 = 1011;
   static const _idHydration3 = 1012;
   static const _idHydrationNow = 1013;
+  static const _idActivity1 = 1020;
+  static const _idActivity2 = 1021;
+  static const _idActivityGoal = 1022;
+  static const _idActivityBehind = 1023;
   static const _idTest = 9999;
 
   static final DateFormat _dayKey = DateFormat('yyyy-MM-dd');
@@ -43,8 +50,34 @@ class NotificationManager {
     if (_ready) return;
     await _service.init();
     await _service.requestPermission();
-    await _setupHydrationReminders();
+    await applyScheduledReminders();
     _ready = true;
+  }
+
+  /// Lay down the fixed daily reminders for each enabled category and cancel
+  /// them for disabled ones. Call on init and whenever the user changes their
+  /// notification settings so toggles take effect immediately.
+  Future<void> applyScheduledReminders() async {
+    if (await NotificationPrefs.hydrationEnabled()) {
+      await _setupHydrationReminders();
+    } else {
+      await _service.cancel(_idHydration1);
+      await _service.cancel(_idHydration2);
+      await _service.cancel(_idHydration3);
+    }
+
+    if (await NotificationPrefs.activityEnabled()) {
+      await _setupActivityReminders();
+    } else {
+      await _service.cancel(_idActivity1);
+      await _service.cancel(_idActivity2);
+    }
+
+    // Food has no fixed daily reminder except the conditional low-protein one;
+    // make sure it can't fire while the category is off.
+    if (!await NotificationPrefs.foodEnabled()) {
+      await _service.cancel(_idLowProteinSched);
+    }
   }
 
   Future<void> _setupHydrationReminders() async {
@@ -71,6 +104,23 @@ class NotificationManager {
     );
   }
 
+  Future<void> _setupActivityReminders() async {
+    await _service.scheduleDaily(
+      id: _idActivity1,
+      hour: 12,
+      minute: 0,
+      title: 'Time to move',
+      body: 'Halfway through the day — get some steps in! 🚶',
+    );
+    await _service.scheduleDaily(
+      id: _idActivity2,
+      hour: 18,
+      minute: 0,
+      title: 'Time to move',
+      body: 'An evening walk will help you hit your step goal. 🚶',
+    );
+  }
+
   /// Evaluate the data-driven triggers. Call whenever today's totals change.
   Future<void> evaluate({
     required int calories,
@@ -85,9 +135,73 @@ class NotificationManager {
     double waterGoalLitres = 0,
     DateTime? nowOverride,
   }) async {
-    if (targetCalories <= 0) return; // targets not set up yet
     final now = nowOverride ?? DateTime.now();
 
+    // The macro-based triggers below need a calorie target; hydration (further
+    // down) is independent of nutrition setup, so it runs regardless. Each
+    // category is also gated behind the user's notification settings.
+    if (targetCalories > 0 && await NotificationPrefs.foodEnabled()) {
+      await _evaluateNutrition(
+        calories: calories,
+        protein: protein,
+        carbs: carbs,
+        fat: fat,
+        targetCalories: targetCalories,
+        targetProtein: targetProtein,
+        targetCarbs: targetCarbs,
+        targetFat: targetFat,
+        now: now,
+      );
+    }
+
+    // ── Hydration: data-driven from logged water ──
+    if (waterGoalLitres > 0 && await NotificationPrefs.hydrationEnabled()) {
+      if (waterLitres >= waterGoalLitres) {
+        // Goal met — silence today's hydration reminders.
+        await _service.cancel(_idHydration1);
+        await _service.cancel(_idHydration2);
+        await _service.cancel(_idHydration3);
+      } else {
+        // Re-arm the fixed daily reminders in case they were cancelled on a
+        // previous day when the goal was met (cancelling a daily-repeating
+        // notification removes all future occurrences, not just today's).
+        await _setupHydrationReminders();
+
+        // Nudge if it's daytime and 2h+ since the last water log (throttled
+        // to at most one nudge every 2h).
+        final prefs = await SharedPreferences.getInstance();
+        final nowMs = now.millisecondsSinceEpoch;
+        const twoHours = 2 * 60 * 60 * 1000;
+        final lastWater = prefs.getInt('last_water_log_ms') ?? 0;
+        final lastNudge = prefs.getInt('notif_hydration_last_ms') ?? 0;
+        final daytime = now.hour >= 9 && now.hour < 21;
+        if (daytime &&
+            nowMs - lastWater >= twoHours &&
+            nowMs - lastNudge >= twoHours) {
+          await _service.showNow(
+            id: _idHydrationNow,
+            title: 'Time to hydrate',
+            body: "You're at ${waterLitres.toStringAsFixed(1)}L of "
+                "${waterGoalLitres.toStringAsFixed(1)}L today — grab a glass! 💧",
+          );
+          await prefs.setInt('notif_hydration_last_ms', nowMs);
+        }
+      }
+    }
+  }
+
+  /// Macro / calorie triggers — only meaningful once nutrition targets exist.
+  Future<void> _evaluateNutrition({
+    required int calories,
+    required int protein,
+    required int carbs,
+    required int fat,
+    required int targetCalories,
+    required int targetProtein,
+    required int targetCarbs,
+    required int targetFat,
+    required DateTime now,
+  }) async {
     // ── Calorie surplus: > 115% of target ──
     if (calories > targetCalories * 1.15) {
       final over = calories - targetCalories;
@@ -145,35 +259,50 @@ class NotificationManager {
         "Haven't logged any meals yet today — did you eat?",
       );
     }
+  }
 
-    // ── Hydration: now data-driven from logged water ──
-    if (waterGoalLitres > 0) {
-      if (waterLitres >= waterGoalLitres) {
-        // Goal met — silence today's hydration reminders.
-        await _service.cancel(_idHydration1);
-        await _service.cancel(_idHydration2);
-        await _service.cancel(_idHydration3);
-      } else {
-        // Nudge if it's daytime and 2h+ since the last water log (throttled
-        // to at most one nudge every 2h).
-        final prefs = await SharedPreferences.getInstance();
-        final nowMs = now.millisecondsSinceEpoch;
-        const twoHours = 2 * 60 * 60 * 1000;
-        final lastWater = prefs.getInt('last_water_log_ms') ?? 0;
-        final lastNudge = prefs.getInt('notif_hydration_last_ms') ?? 0;
-        final daytime = now.hour >= 9 && now.hour < 21;
-        if (daytime &&
-            nowMs - lastWater >= twoHours &&
-            nowMs - lastNudge >= twoHours) {
-          await _service.showNow(
-            id: _idHydrationNow,
-            title: 'Time to hydrate',
-            body: "You're at ${waterLitres.toStringAsFixed(1)}L of "
-                "${waterGoalLitres.toStringAsFixed(1)}L today — grab a glass! 💧",
-          );
-          await prefs.setInt('notif_hydration_last_ms', nowMs);
-        }
-      }
+  /// Evaluate activity (step) triggers against today's step count. Call when
+  /// the live step total changes (throttled by the caller). [stepGoal] is the
+  /// user's daily step target.
+  ///
+  ///   • Goal achieved  — steps reached the daily goal (celebrated once/day)
+  ///   • Behind         — evening and under half the goal (nudged once/day)
+  Future<void> evaluateActivity({
+    required int steps,
+    required int stepGoal,
+    DateTime? nowOverride,
+  }) async {
+    if (stepGoal <= 0) return; // no goal configured
+    if (!await NotificationPrefs.activityEnabled()) return;
+    final now = nowOverride ?? DateTime.now();
+
+    if (steps >= stepGoal) {
+      // Goal met — silence today's fixed "get moving" reminders and celebrate.
+      await _service.cancel(_idActivity1);
+      await _service.cancel(_idActivity2);
+      await _fireOncePerDay(
+        'activitygoal',
+        _idActivityGoal,
+        'Step goal smashed! 🏆',
+        "You hit $stepGoal steps today — nice work!",
+      );
+      return;
+    }
+
+    // Goal not met — re-arm the fixed daily reminders in case they were
+    // cancelled on a previous day when the goal was reached (cancelling a
+    // daily-repeating notification removes all future occurrences).
+    await _setupActivityReminders();
+
+    // Behind nudge: in the evening and still under half the goal.
+    if (now.hour >= 18 && steps < stepGoal * 0.5) {
+      final left = stepGoal - steps;
+      await _fireOncePerDay(
+        'activitybehind',
+        _idActivityBehind,
+        'Get moving 🚶',
+        "You're at $steps steps — $left to go before bed. A short walk helps!",
+      );
     }
   }
 

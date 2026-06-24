@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/daily_log_service.dart';
 import '../services/notification_manager.dart';
+import '../services/notification_prefs.dart';
 import '../services/meal_cache.dart';
 import '../services/meal_history_service.dart';
 import '../services/meal_planner.dart';
@@ -56,6 +57,19 @@ class HomeViewModel extends ChangeNotifier {
 
   int steps        = 0;
   String stepStatus = 'stopped';
+
+  /// Daily step goal used for progress + activity notifications. Loaded from
+  /// [NotificationPrefs] (user-editable on the profile page); falls back to the
+  /// default until loaded.
+  int stepGoal = NotificationPrefs.defaultStepGoal;
+  double get stepProgress =>
+      stepGoal > 0 ? (steps / stepGoal).clamp(0.0, 1.0) : 0.0;
+
+  /// Reload the step goal from prefs (call after the user edits it).
+  Future<void> reloadStepGoal() async {
+    stepGoal = await NotificationPrefs.stepGoal();
+    notifyListeners();
+  }
   StreamSubscription<StepCount>?         _stepSubscription;
   StreamSubscription<PedestrianStatus>?  _statusSubscription;
   Timer? _stepRefreshTimer;
@@ -96,6 +110,7 @@ class HomeViewModel extends ChangeNotifier {
 
   HomeViewModel() {
     _loadUserData();
+    reloadStepGoal();
     _initPedometer();
     _scheduleMidnightReset();
     _notifications.init(); // request permission + lay down daily reminders
@@ -380,6 +395,10 @@ class HomeViewModel extends ChangeNotifier {
     _dailyLogService.updateActivity(uid, stepsNet: steps).catchError(
           (e) => debugPrint('Persist steps error: $e'),
         );
+
+    // Evaluate activity notifications against the fresh step total (shares the
+    // same throttle so we don't re-check on every sensor event).
+    _notifications.evaluateActivity(steps: steps, stepGoal: stepGoal);
   }
 
   // ─── Computed getters ────────────────────────────────────

@@ -9,9 +9,11 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/weight_service.dart';
 import '../../services/notification_manager.dart';
+import '../../services/notification_prefs.dart';
 import '../../widget_tree.dart';
 import '../onboarding/select_goal_view.dart';
 import '../analytics/widgets/trend_line_chart.dart';
+import 'notification_settings_view.dart';
 
 /// Profile hub — opened from the top-left avatar (§1). Holds the profile
 /// summary, daily targets, goal reassignment, body-weight logging + trend,
@@ -34,6 +36,7 @@ class _ProfileHubViewState extends State<ProfileHubView> {
 
   UserProfile? _profile;
   List<WeightEntry> _weights = const [];
+  int _stepGoal = NotificationPrefs.defaultStepGoal;
   bool _loading = true;
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
@@ -53,10 +56,12 @@ class _ProfileHubViewState extends State<ProfileHubView> {
     try {
       final profile = await _firestore.getUserProfile(uid);
       final weights = await _weightService.history(uid);
+      final stepGoal = await NotificationPrefs.stepGoal();
       if (!mounted) return;
       setState(() {
         _profile = profile;
         _weights = weights;
+        _stepGoal = stepGoal;
         _loading = false;
       });
     } catch (_) {
@@ -131,6 +136,56 @@ class _ProfileHubViewState extends State<ProfileHubView> {
     _load(); // refresh current weight + trend
   }
 
+  // ─── Step goal ───────────────────────────────────────────
+  Future<void> _editStepGoal() async {
+    final controller = TextEditingController(text: '$_stepGoal');
+    final goal = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Daily step goal'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            suffixText: 'steps',
+            hintText: 'e.g. 10000',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final v = int.tryParse(controller.text.trim());
+              if (v != null && v >= 1000 && v <= 100000) {
+                Navigator.pop(ctx, v);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (goal == null) return;
+    await NotificationPrefs.setStepGoal(goal);
+    if (!mounted) return;
+    setState(() => _stepGoal = goal);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Step goal set to ${_formatInt(goal)} steps')),
+    );
+  }
+
+  void _openNotificationSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const NotificationSettingsView()),
+    );
+  }
+
   Future<void> _sendTestNotification() async {
     await _notifications.sendTest();
     if (!mounted) return;
@@ -199,6 +254,10 @@ class _ProfileHubViewState extends State<ProfileHubView> {
                   const SizedBox(height: 16),
                 ],
 
+                _stepGoalCard(),
+                const SizedBox(height: 16),
+                _notificationSettingsButton(),
+                const SizedBox(height: 12),
                 _testNotificationButton(),
                 const SizedBox(height: 12),
                 _signOutButton(),
@@ -237,6 +296,22 @@ class _ProfileHubViewState extends State<ProfileHubView> {
         _row('Protein', '${t.proteinG} g'),
         _row('Carbs', '${t.carbsG} g'),
         _row('Fat', '${t.fatG} g'),
+      ],
+    );
+  }
+
+  Widget _stepGoalCard() {
+    return _card(
+      title: 'Activity Goal',
+      trailing: TextButton.icon(
+        onPressed: _editStepGoal,
+        icon: const Icon(Icons.tune, size: 16, color: _green),
+        label: const Text('Edit',
+            style: TextStyle(color: _green, fontWeight: FontWeight.w600)),
+        style: TextButton.styleFrom(padding: EdgeInsets.zero),
+      ),
+      children: [
+        _row('Daily steps', '${_formatInt(_stepGoal)} steps'),
       ],
     );
   }
@@ -307,6 +382,41 @@ class _ProfileHubViewState extends State<ProfileHubView> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _notificationSettingsButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _openNotificationSettings,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: const [
+                Icon(Icons.notifications_outlined, color: _green),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text('Notification settings',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87)),
+                ),
+                Icon(Icons.chevron_right, color: Colors.black38),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -412,4 +522,6 @@ class _ProfileHubViewState extends State<ProfileHubView> {
 
   static String _titleCase(String s) =>
       s.isEmpty ? '—' : s[0].toUpperCase() + s.substring(1);
+
+  static String _formatInt(int n) => NumberFormat('#,###').format(n);
 }

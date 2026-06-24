@@ -627,11 +627,6 @@ class _HomeContent extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const FitnessRadarView()),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.black54),
-            // Placeholder — the working test action lives in the Profile screen.
-            onPressed: () {},
-          ),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(context),
@@ -698,7 +693,7 @@ class _HomeContent extends StatelessWidget {
                   value: NumberFormat('#,###').format(vm.steps),
                   label: 'STEPS',
                   color: _green,
-                  progress: (vm.steps / 10000).clamp(0.0, 1.0),
+                  progress: vm.stepProgress,
                   onTap: () => _openAnalytics(context, initialTab: 0),
                 ),
                 const SizedBox(width: 10),
