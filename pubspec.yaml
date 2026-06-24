@@ -19,7 +19,6 @@ dependencies:
 
   # Firebase Core & Platform Overrides
   firebase_core: ^3.1.1
-  firebase_core_platform_interface: 5.3.0
   firebase_auth: ^5.0.0
   cloud_firestore: ^5.0.0
   google_sign_in: ^6.2.1
@@ -54,6 +53,9 @@ dev_dependencies:
 
   # Adopted the newer linting standard configuration
   flutter_lints: ^6.0.0
+
+  # In-memory SharedPreferencesAsync double for unit tests (PlacesCache).
+  shared_preferences_platform_interface: ^2.4.2
 
 flutter:
   uses-material-design: true

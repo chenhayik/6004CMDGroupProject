@@ -1,8 +1,8 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_profile.dart';
 import '../services/firestore_service.dart';
+import '../services/macro_math.dart';
 
 enum MacroRatio { balanced, highProtein, lowCarb, highCarb }
 
@@ -60,51 +60,22 @@ class MacroCalculatorViewModel extends ChangeNotifier {
 
   // ── Called on init and when macro tab changes ──
   void calculateTargets() {
-    final double weight =
-        double.tryParse(formData['weight'].toString()) ?? 70.0;
-    final double height =
-        double.tryParse(formData['height'].toString()) ?? 170.0;
-    final double age =
-        double.tryParse(formData['age'].toString()) ?? 30.0;
-    final String sex =
-    formData['biologicalSex'].toString().toLowerCase();
-    final String activityStr =
-    formData['activityLevel'].toString().toLowerCase();
-    final String goal =
-    formData['goal'].toString().toLowerCase();
+    final result = MacroMath.compute(
+      weightKg: double.tryParse(formData['weight'].toString()) ?? 70.0,
+      heightCm: double.tryParse(formData['height'].toString()) ?? 170.0,
+      age: double.tryParse(formData['age'].toString()) ?? 30.0,
+      sex: formData['biologicalSex'].toString(),
+      activityLevel: formData['activityLevel'].toString(),
+      goal: formData['goal'].toString(),
+      split: macroRatio.split,
+    );
 
-    // Activity multiplier
-    double multiplier = 1.2;
-    if (activityStr.contains('light'))    multiplier = 1.375;
-    if (activityStr.contains('moderate')) multiplier = 1.55;
-    if (activityStr.contains('very'))     multiplier = 1.725;
-    if (activityStr.contains('extra'))    multiplier = 1.9;
-
-    // BMR (Mifflin-St Jeor)
-    final double rawBmr = sex == 'male'
-        ? (10 * weight) + (6.25 * height) - (5 * age) + 5
-        : (10 * weight) + (6.25 * height) - (5 * age) - 161;
-
-    final double rawTdee = rawBmr * multiplier;
-
-    // Goal adjustment
-    double rawTarget = rawTdee;
-    if (goal == 'cut')  rawTarget = rawTdee - 500;
-    if (goal == 'bulk') rawTarget = rawTdee + 300;
-
-    // Minimum safe calories
-    final double minCalories = sex == 'male' ? 1500 : 1200;
-    rawTarget = max(rawTarget, minCalories);
-
-    // Macro split
-    final (pPct, cPct, fPct) = macroRatio.split;
-
-    bmr            = rawBmr.round();
-    tdee           = rawTdee.round();
-    targetCalories = rawTarget.round();
-    proteinG       = ((rawTarget * pPct) / 4).round();
-    carbsG         = ((rawTarget * cPct) / 4).round();
-    fatG           = ((rawTarget * fPct) / 9).round();
+    bmr            = result.bmr;
+    tdee           = result.tdee;
+    targetCalories = result.targetCalories;
+    proteinG       = result.proteinG;
+    carbsG         = result.carbsG;
+    fatG           = result.fatG;
 
     notifyListeners();
   }
