@@ -52,6 +52,8 @@ class DailyLogService {
 
   // ── Add water (litres) to today's running total. ──
   Future<void> addWater(String uid, double litres) async {
+    if (litres <= 0) return;
+
     await _todayRef(uid).set(
       {
         'water_liters': FieldValue.increment(litres),
