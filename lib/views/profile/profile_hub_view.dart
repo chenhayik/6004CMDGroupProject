@@ -125,6 +125,10 @@ class _ProfileHubViewState extends State<ProfileHubView> {
       ),
     );
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.dispose();
+    });
+
     if (kg == null) return;
     final uid = _uid;
     if (uid == null) return;
