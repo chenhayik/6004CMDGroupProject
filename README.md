@@ -1,6 +1,6 @@
 # mobile_application_group
 
-Mobile Aplication group project
+Mobile Application group project
 
 ## Getting Started
 
